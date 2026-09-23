@@ -1,0 +1,158 @@
+import AppKit
+import Combine
+import QuickLookThumbnailing
+import SwiftUI
+
+/// One screenshot (or screen recording) sitting in the stack.
+@MainActor
+final class Shot: ObservableObject, Identifiable {
+    let id = UUID()
+    var url: URL
+    let created: Date
+    @Published var thumbnail: NSImage?
+    @Published var pixelSize: CGSize?
+    @Published var toast: String?
+    private(set) var modified: Date?
+
+    var isVideo: Bool { ["mov", "mp4", "m4v"].contains(url.pathExtension.lowercased()) }
+    var exists: Bool { FileManager.default.fileExists(atPath: url.path) }
+
+    init(url: URL, created: Date = Date()) {
+        self.url = url
+        self.created = created
+        refresh()
+    }
+
+    /// Re-reads the file: thumbnail, dimensions, modification date.
+    func refresh() {
+        modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        if let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+           let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
+           let w = props[kCGImagePropertyPixelWidth] as? Int,
+           let h = props[kCGImagePropertyPixelHeight] as? Int {
+            pixelSize = CGSize(width: w, height: h)
+        }
+        let request = QLThumbnailGenerator.Request(
+            fileAt: url,
+            size: CGSize(width: Layout.cardW, height: Layout.cardH),
+            scale: 2,
+            representationTypes: .thumbnail
+        )
+        QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { rep, _ in
+            let image = rep?.nsImage
+            Task { @MainActor in
+                if let image {
+                    self.thumbnail = image
+                } else if self.thumbnail == nil {
+                    self.thumbnail = NSImage(contentsOf: self.url)
+                }
+            }
+        }
+    }
+
+    func refreshIfModified() {
+        let now = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        if let now, now != modified { refresh() }
+    }
+
+    /// Shows a short message over the card.
+    func flash(_ message: String, for seconds: Double = 0.9) {
+        withAnimation(.easeOut(duration: 0.15)) { toast = message }
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+            if self.toast == message {
+                withAnimation(.easeIn(duration: 0.2)) { self.toast = nil }
+            }
+        }
+    }
+}
+
+@MainActor
+final class ShotStore: ObservableObject {
+    static let shared = ShotStore()
+
+    /// Newest first.
+    @Published private(set) var shots: [Shot] = []
+    @Published var expanded = false
+    /// Things you dismissed, so you can bring them back from the menu.
+    @Published private(set) var recent: [Shot] = []
+    /// Set by the panel controller based on the screen it lives on.
+    @Published var maxListHeight: CGFloat = 600
+
+    private let spring = Animation.spring(response: 0.38, dampingFraction: 0.82)
+
+    func add(_ url: URL, created: Date = Date()) {
+        guard !shots.contains(where: { $0.url == url }) else { return }
+        recent.removeAll { $0.url == url }
+        let shot = Shot(url: url, created: created)
+        withAnimation(spring) { shots.insert(shot, at: 0) }
+    }
+
+    /// Takes it off the stack. The file stays where it is.
+    func dismiss(_ shot: Shot) {
+        guard shots.contains(where: { $0 === shot }) else { return }
+        withAnimation(spring) {
+            shots.removeAll { $0 === shot }
+            if shots.count <= 1 { expanded = false }
+        }
+        shot.toast = nil
+        recent.insert(shot, at: 0)
+        if recent.count > 20 { recent.removeLast(recent.count - 20) }
+    }
+
+    /// Dismisses after a short confirmation message, unless ⌥ is held.
+    func finish(_ shot: Shot, message: String) {
+        shot.flash(message)
+        if NSEvent.modifierFlags.contains(.option) { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { self.dismiss(shot) }
+    }
+
+    func trash(_ shot: Shot) {
+        NSWorkspace.shared.recycle([shot.url]) { _, _ in }
+        withAnimation(spring) {
+            shots.removeAll { $0 === shot }
+            if shots.count <= 1 { expanded = false }
+        }
+        recent.removeAll { $0 === shot }
+    }
+
+    func clearAll() {
+        for shot in shots { shot.toast = nil }
+        recent.insert(contentsOf: shots, at: 0)
+        if recent.count > 20 { recent.removeLast(recent.count - 20) }
+        withAnimation(spring) {
+            shots.removeAll()
+            expanded = false
+        }
+    }
+
+    func restore(_ shot: Shot) {
+        recent.removeAll { $0 === shot }
+        guard shot.exists else { return }
+        withAnimation(spring) { shots.insert(shot, at: 0) }
+    }
+
+    func restoreAllRecent() {
+        let items = recent.filter(\.exists)
+        recent.removeAll()
+        withAnimation(spring) { shots.insert(contentsOf: items, at: 0) }
+    }
+
+    func fileChanged(_ url: URL) {
+        shots.first { $0.url == url }?.refreshIfModified()
+    }
+
+    /// Drops cards whose file was deleted or moved somewhere else.
+    func pruneMissing() {
+        let missing = shots.filter { !$0.exists }
+        guard !missing.isEmpty else { return }
+        withAnimation(spring) {
+            shots.removeAll { s in missing.contains { $0 === s } }
+            if shots.count <= 1 { expanded = false }
+        }
+        recent.removeAll { !$0.exists }
+    }
+
+    func toggleExpanded() {
+        withAnimation(spring) { expanded = shots.count > 1 ? !expanded : false }
+    }
+}

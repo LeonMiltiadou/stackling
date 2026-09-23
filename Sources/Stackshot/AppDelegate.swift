@@ -1,0 +1,245 @@
+import AppKit
+import Combine
+import ServiceManagement
+
+@MainActor
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
+    private let store = ShotStore.shared
+    private var panel: StackPanelController!
+    private var watcher: ScreenshotWatcher!
+    private var statusItem: NSStatusItem!
+    private var bag = Set<AnyCancellable>()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        buildMainMenu()
+        panel = StackPanelController(store: store)
+        watcher = ScreenshotWatcher(store: store)
+
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        statusItem.button?.image = NSImage(systemSymbolName: "square.stack.3d.up.fill", accessibilityDescription: "Stackshot")
+        let menu = NSMenu()
+        menu.delegate = self
+        statusItem.menu = menu
+
+        store.$shots
+            .receive(on: RunLoop.main)
+            .sink { shots in NSApp.dockTile.badgeLabel = shots.isEmpty ? nil : "\(shots.count)" }
+            .store(in: &bag)
+
+        // The native thumbnail delays saving the file and would double up with our stack.
+        if Prefs.nativeThumbnailEnabled && !UserDefaults.standard.bool(forKey: "leaveNativeThumbnail") {
+            Prefs.setNativeThumbnail(false)
+        }
+
+        watcher.start()
+
+        if !UserDefaults.standard.bool(forKey: "welcomed") {
+            UserDefaults.standard.set(true, forKey: "welcomed")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.showWelcome() }
+        }
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Clicking the Dock icon starts an area capture.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Capture.area.run()
+        return false
+    }
+
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        addCaptureItems(to: menu)
+        if !store.shots.isEmpty {
+            menu.addItem(.separator())
+            menu.addItem(item("Clear Stack (\(store.shots.count))") { [weak self] in self?.store.clearAll() })
+        }
+        return menu
+    }
+
+    // MARK: - Menus
+
+    private func buildMainMenu() {
+        let main = NSMenu()
+        let appItem = NSMenuItem()
+        main.addItem(appItem)
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "About Stackshot", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        appMenu.addItem(withTitle: "Hide Stackshot", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        appMenu.addItem(withTitle: "Quit Stackshot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        NSApp.mainMenu = main
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        menu.removeAllItems()
+        addCaptureItems(to: menu)
+        menu.addItem(.separator())
+
+        let count = store.shots.count
+        if count > 1 {
+            menu.addItem(item(store.expanded ? "Collapse Stack" : "Expand Stack") { [weak self] in self?.store.toggleExpanded() })
+        }
+        let clear = item(count > 0 ? "Clear Stack (\(count))" : "Stack is empty") { [weak self] in self?.store.clearAll() }
+        clear.isEnabled = count > 0
+        menu.addItem(clear)
+
+        let recentItem = NSMenuItem(title: "Recently Dismissed", action: nil, keyEquivalent: "")
+        let recentMenu = NSMenu()
+        let recent = store.recent.filter(\.exists)
+        if recent.isEmpty {
+            let empty = NSMenuItem(title: "Nothing yet", action: nil, keyEquivalent: "")
+            empty.isEnabled = false
+            recentMenu.addItem(empty)
+        } else {
+            for shot in recent {
+                let entry = item(shot.url.deletingPathExtension().lastPathComponent) { [weak self] in self?.store.restore(shot) }
+                if let thumb = shot.thumbnail {
+                    let icon = NSImage(size: NSSize(width: 32, height: 20), flipped: false) { rect in
+                        thumb.draw(in: rect.aspectFit(thumb.size))
+                        return true
+                    }
+                    entry.image = icon
+                }
+                recentMenu.addItem(entry)
+            }
+            recentMenu.addItem(.separator())
+            recentMenu.addItem(item("Bring All Back") { [weak self] in self?.store.restoreAllRecent() })
+        }
+        recentItem.submenu = recentMenu
+        menu.addItem(recentItem)
+
+        menu.addItem(.separator())
+        menu.addItem(saveLocationItem())
+        menu.addItem(item("Open Screenshots Folder") { NSWorkspace.shared.open(Prefs.screenshotFolder) })
+
+        let native = item("Show macOS Floating Thumbnail Too") {
+            let on = !Prefs.nativeThumbnailEnabled
+            Prefs.setNativeThumbnail(on)
+            UserDefaults.standard.set(on, forKey: "leaveNativeThumbnail")
+        }
+        native.state = Prefs.nativeThumbnailEnabled ? .on : .off
+        native.toolTip = "Leave this off. With it on, macOS waits for its own thumbnail to vanish before saving, so screenshots show up late."
+        menu.addItem(native)
+
+        let login = item("Open at Login") {
+            let service = SMAppService.mainApp
+            if service.status == .enabled { try? service.unregister() } else { try? service.register() }
+        }
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(login)
+
+        menu.addItem(.separator())
+        menu.addItem(item("How It Works…") { [weak self] in self?.showWelcome() })
+        menu.addItem(item("Quit Stackshot") { NSApp.terminate(nil) })
+    }
+
+    private func addCaptureItems(to menu: NSMenu) {
+        menu.addItem(item("Capture Area", hint: "⇧⌘4") { Capture.area.run() })
+        menu.addItem(item("Capture Window", hint: "⇧⌘4 then Space") { Capture.window.run() })
+        menu.addItem(item("Capture Entire Screen", hint: "⇧⌘3") { Capture.screen.run() })
+        menu.addItem(item("Screenshot & Record Toolbar…", hint: "⇧⌘5") { Capture.toolbar.run() })
+    }
+
+    private func saveLocationItem() -> NSMenuItem {
+        let parent = NSMenuItem(title: "Save Screenshots To", action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let current = Prefs.screenshotFolder.standardizedFileURL
+        let options: [(String, URL)] = [
+            ("Desktop", home.appendingPathComponent("Desktop")),
+            ("Pictures › Screenshots", home.appendingPathComponent("Pictures/Screenshots")),
+            ("Downloads", home.appendingPathComponent("Downloads")),
+        ]
+        var matched = false
+        for (title, url) in options {
+            let entry = item(title) { [weak self] in
+                Prefs.setScreenshotFolder(url)
+                self?.watcher.checkLocation()
+            }
+            if url.standardizedFileURL == current { entry.state = .on; matched = true }
+            sub.addItem(entry)
+        }
+        if !matched {
+            let custom = NSMenuItem(title: current.lastPathComponent, action: nil, keyEquivalent: "")
+            custom.state = .on
+            custom.isEnabled = false
+            sub.addItem(custom)
+        }
+        sub.addItem(.separator())
+        sub.addItem(item("Choose Folder…") { [weak self] in
+            NSApp.activate()
+            let panel = NSOpenPanel()
+            panel.canChooseDirectories = true
+            panel.canChooseFiles = false
+            panel.canCreateDirectories = true
+            panel.prompt = "Use Folder"
+            panel.directoryURL = current
+            if panel.runModal() == .OK, let url = panel.url {
+                Prefs.setScreenshotFolder(url)
+                self?.watcher.checkLocation()
+            }
+        })
+        parent.submenu = sub
+        return parent
+    }
+
+    private func item(_ title: String, hint: String? = nil, _ action: @escaping () -> Void) -> NSMenuItem {
+        let entry = ClosureMenuItem(title: title, action: action)
+        if let hint {
+            let text = NSMutableAttributedString(string: title)
+            text.append(NSAttributedString(
+                string: "   \(hint)",
+                attributes: [.foregroundColor: NSColor.secondaryLabelColor, .font: NSFont.menuFont(ofSize: 0)]
+            ))
+            entry.attributedTitle = text
+        }
+        return entry
+    }
+
+    private func showWelcome() {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = "Stackshot is running"
+        alert.informativeText = """
+        Take screenshots the normal way: ⇧⌘3, ⇧⌘4 or ⇧⌘5.
+
+        Each one lands in a stack in the bottom-left corner and stays there until you do something with it: copy, drag it into an app, edit, grab its text, or dismiss it.
+
+        Tips
+        • Click a card to mark it up in Preview.
+        • Hold ⌥ while copying to keep the card.
+        • Dismissed cards live in the menu bar under Recently Dismissed.
+        • Clicking the Dock icon starts an area capture.
+
+        I switched off the macOS floating thumbnail so you don't get two previews.
+        """
+        alert.icon = NSApp.applicationIconImage
+        alert.addButton(withTitle: "Got it")
+        alert.runModal()
+    }
+}
+
+final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(title: String, action handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(fire), keyEquivalent: "")
+        target = self
+    }
+
+    required init(coder: NSCoder) { fatalError() }
+
+    @objc private func fire() { handler() }
+}
+
+extension NSRect {
+    func aspectFit(_ size: NSSize) -> NSRect {
+        guard size.width > 0, size.height > 0 else { return self }
+        let scale = min(width / size.width, height / size.height)
+        let w = size.width * scale, h = size.height * scale
+        return NSRect(x: midX - w / 2, y: midY - h / 2, width: w, height: h)
+    }
+}

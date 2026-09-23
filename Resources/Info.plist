@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>Stackshot</string>
+    <key>CFBundleDisplayName</key><string>Stackshot</string>
+    <key>CFBundleIdentifier</key><string>com.leonmiltiadou.stackshot</string>
+    <key>CFBundleExecutable</key><string>Stackshot</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>0.1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSHumanReadableCopyright</key><string>Screenshots that wait for you.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>Stackshot watches your screenshot folder so new screenshots appear in the stack.</string>
+    <key>NSDocumentsFolderUsageDescription</key><string>Stackshot watches your screenshot folder so new screenshots appear in the stack.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>Stackshot watches your screenshot folder so new screenshots appear in the stack.</string>
+</dict>
+</plist>
