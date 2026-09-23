@@ -123,6 +123,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         native.toolTip = "Leave this off. With it on, macOS waits for its own thumbnail to vanish before saving, so screenshots show up late."
         menu.addItem(native)
 
+        menu.addItem(fadeItem())
+        menu.addItem(opacityItem())
+
         let login = item("Open at Login") {
             let service = SMAppService.mainApp
             if service.status == .enabled { try? service.unregister() } else { try? service.register() }
@@ -133,6 +136,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(item("How It Works…") { [weak self] in self?.showWelcome() })
         menu.addItem(item("Quit Stackshot") { NSApp.terminate(nil) })
+    }
+
+    private func fadeItem() -> NSMenuItem {
+        let parent = NSMenuItem(title: "Fade When Idle", action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        for (title, seconds) in [("After 2 seconds", 2.0), ("After 5 seconds", 5), ("After 10 seconds", 10), ("After 30 seconds", 30), ("Never", 0)] {
+            let entry = item(title) { [weak self] in
+                Settings.fadeDelay = seconds
+                self?.panel.poke()
+            }
+            entry.state = Settings.fadeDelay == seconds ? .on : .off
+            sub.addItem(entry)
+        }
+        parent.submenu = sub
+        return parent
+    }
+
+    private func opacityItem() -> NSMenuItem {
+        let parent = NSMenuItem(title: "When Faded", action: nil, keyEquivalent: "")
+        let sub = NSMenu()
+        for (title, value) in [("Invisible", 0.0), ("Barely there (10%)", 0.1), ("Faint (20%)", 0.2), ("Half (50%)", 0.5)] {
+            let entry = item(title) { [weak self] in
+                Settings.fadedOpacity = value
+                self?.panel.poke()
+            }
+            entry.state = abs(Settings.fadedOpacity - value) < 0.01 ? .on : .off
+            sub.addItem(entry)
+        }
+        sub.addItem(.separator())
+        let note = NSMenuItem(title: "Hover the corner to bring it back", action: nil, keyEquivalent: "")
+        note.isEnabled = false
+        sub.addItem(note)
+        parent.submenu = sub
+        return parent
     }
 
     private func addCaptureItems(to menu: NSMenu) {
@@ -212,6 +249,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         • Hold ⌥ while copying to keep the card.
         • Dismissed cards live in the menu bar under Recently Dismissed.
         • Clicking the Dock icon starts an area capture.
+        • After a few quiet seconds the stack fades. Hover the corner to bring it back.
 
         I switched off the macOS floating thumbnail so you don't get two previews.
         """

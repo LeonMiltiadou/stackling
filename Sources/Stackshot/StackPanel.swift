@@ -38,6 +38,11 @@ final class StackPanelController {
     private var screen: NSScreen?
     private var pending: DispatchWorkItem?
 
+    // Fading: the stack drops to a faint ghost after a quiet spell and comes back on hover.
+    private var lastActivity = Date()
+    private var faded = false
+    private var fadeTimer: Timer?
+
     init(store: ShotStore) {
         self.store = store
         let host = NSHostingView(rootView: StackView(store: store))
@@ -56,6 +61,40 @@ final class StackPanelController {
                 self.layout(count: self.store.shots.count, expanded: self.store.expanded)
             }
             .store(in: &bag)
+
+        // Polling rather than tracking areas: it keeps working while faded, when the panel
+        // ignores the mouse so clicks fall through to whatever is underneath.
+        // Scheduled in the default run loop mode, so it pauses while a menu is open.
+        fadeTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.tickFade() }
+        }
+    }
+
+    /// Something happened (new shot, action, settings change): show at full strength and restart the clock.
+    func poke() {
+        lastActivity = Date()
+        setFaded(false)
+    }
+
+    private func tickFade() {
+        guard panel.isVisible else { return }
+        let content = panel.frame.insetBy(dx: Layout.pad - 6, dy: Layout.pad - 6)
+        let hovering = NSMouseInRect(NSEvent.mouseLocation, content, false)
+        if hovering { lastActivity = Date() }
+        let delay = Settings.fadeDelay
+        setFaded(delay > 0 && !hovering && Date().timeIntervalSince(lastActivity) > delay)
+    }
+
+    private func setFaded(_ fade: Bool) {
+        guard fade != faded else { return }
+        faded = fade
+        panel.ignoresMouseEvents = fade
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = fade ? 0.8 : 0.15
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().alphaValue = fade ? Settings.fadedOpacity : 1
+        }
+        if !fade { NotificationCenter.default.post(name: DragSurfaceView.recheckHover, object: nil) }
     }
 
     private func mouseScreen() -> NSScreen {
@@ -65,6 +104,7 @@ final class StackPanelController {
 
     private func layout(count: Int, expanded: Bool) {
         pending?.cancel()
+        poke()
 
         guard count > 0 else {
             // Let the exit animation play before hiding.

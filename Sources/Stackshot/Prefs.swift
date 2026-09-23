@@ -18,6 +18,34 @@ enum Prefs {
         CFPreferencesAppSynchronize(domain)
     }
 
+    // MARK: Undo support
+    // Before we change a system screenshot setting for the first time, we remember what it was,
+    // so `--uninstall` can put your Mac back exactly as it was.
+
+    private static let unset = "__unset__"
+
+    private static func backup(_ key: String) {
+        let d = UserDefaults.standard
+        guard d.object(forKey: "original.\(key)") == nil else { return }
+        d.set(value(key) ?? unset, forKey: "original.\(key)")
+    }
+
+    static func restoreOriginals() {
+        for key in ["show-thumbnail", "location"] {
+            switch UserDefaults.standard.object(forKey: "original.\(key)") {
+            case let s as String where s == unset:
+                defaults(["delete", "com.apple.screencapture", key])
+            case let s as String:
+                defaults(["write", "com.apple.screencapture", key, "-string", s])
+            case let n as NSNumber:
+                defaults(["write", "com.apple.screencapture", key, "-bool", n.boolValue ? "true" : "false"])
+            default:
+                // No backup: we only ever touch show-thumbnail without one (early builds), and macOS's default is on.
+                if key == "show-thumbnail" { defaults(["delete", "com.apple.screencapture", key]) }
+            }
+        }
+    }
+
     static var desktop: URL { FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Desktop") }
 
     /// Where macOS saves screenshots. Defaults to the Desktop.
@@ -33,6 +61,7 @@ enum Prefs {
     }
 
     static func setScreenshotFolder(_ url: URL) {
+        backup("location")
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         defaults(["write", "com.apple.screencapture", "location", "-string", url.path])
     }
@@ -44,6 +73,7 @@ enum Prefs {
     }
 
     static func setNativeThumbnail(_ enabled: Bool) {
+        backup("show-thumbnail")
         defaults(["write", "com.apple.screencapture", "show-thumbnail", "-bool", enabled ? "true" : "false"])
     }
 }
@@ -65,5 +95,22 @@ enum Capture {
         p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
         p.arguments = args
         try? p.run()
+    }
+}
+
+/// Stackshot's own settings.
+enum Settings {
+    private static var d: UserDefaults { .standard }
+
+    /// Seconds of quiet before the stack fades. 0 means never.
+    static var fadeDelay: Double {
+        get { d.object(forKey: "fadeDelay") as? Double ?? 5 }
+        set { d.set(newValue, forKey: "fadeDelay") }
+    }
+
+    /// How visible the stack is while faded.
+    static var fadedOpacity: Double {
+        get { d.object(forKey: "fadedOpacity") as? Double ?? 0.2 }
+        set { d.set(newValue, forKey: "fadedOpacity") }
     }
 }

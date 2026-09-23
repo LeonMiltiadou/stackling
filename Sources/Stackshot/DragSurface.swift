@@ -69,9 +69,27 @@ final class DragSurfaceView: NSView, NSDraggingSource {
         }
     }
 
+    static let recheckHover = Notification.Name("StackshotRecheckHover")
+    private var recheckObserver: NSObjectProtocol?
+
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        if window == nil { hoverCheck?.invalidate() }
+        if window == nil {
+            hoverCheck?.invalidate()
+            recheckObserver.map(NotificationCenter.default.removeObserver)
+            recheckObserver = nil
+        } else if recheckObserver == nil {
+            // The panel ignores the mouse while faded, so no "entered" event arrives
+            // if the pointer was already sitting on the card when it wakes up.
+            recheckObserver = NotificationCenter.default.addObserver(
+                forName: Self.recheckHover, object: nil, queue: .main
+            ) { [weak self] _ in
+                guard let self, let w = self.window, self.hoverCheck == nil else { return }
+                if self.bounds.contains(self.convert(w.mouseLocationOutsideOfEventStream, from: nil)) {
+                    self.setHover(true)
+                }
+            }
+        }
     }
     override func cursorUpdate(with event: NSEvent) { NSCursor.openHand.set() }
 
