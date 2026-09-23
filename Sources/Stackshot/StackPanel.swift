@@ -70,6 +70,8 @@ final class StackPanelController {
         }
     }
 
+    var windowNumber: Int { panel.windowNumber }
+
     /// Something happened (new shot, action, settings change): show at full strength and restart the clock.
     func poke() {
         lastActivity = Date()

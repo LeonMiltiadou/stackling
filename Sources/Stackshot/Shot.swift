@@ -12,6 +12,8 @@ final class Shot: ObservableObject, Identifiable {
     @Published var thumbnail: NSImage?
     @Published var pixelSize: CGSize?
     @Published var toast: String?
+    /// Annotations and beautify settings, kept beside the file until you flatten them.
+    @Published var markup: Markup?
     private(set) var modified: Date?
 
     var isVideo: Bool { ["mov", "mp4", "m4v"].contains(url.pathExtension.lowercased()) }
@@ -20,7 +22,32 @@ final class Shot: ObservableObject, Identifiable {
     init(url: URL, created: Date = Date()) {
         self.url = url
         self.created = created
+        self.markup = Markup.load(for: url)
         refresh()
+    }
+
+    var hasMarkup: Bool { !(markup?.isEmpty ?? true) }
+
+    func setMarkup(_ new: Markup) {
+        markup = new.isEmpty ? nil : new
+        new.save(for: url)
+        refresh()
+    }
+
+    /// The file to hand to other apps: the original, or a flattened copy if you've annotated it.
+    func exportURL() -> URL {
+        guard hasMarkup, let markup, let base = MarkupRenderer.loadImage(url),
+              let rendered = MarkupRenderer.render(base: base, markup: markup) else { return url }
+        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("com.leonmiltiadou.stackshot/exports/\(id.uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let out = dir.appendingPathComponent(url.deletingPathExtension().lastPathComponent + ".png")
+        do {
+            try MarkupRenderer.writePNG(rendered, to: out, pixelScale: MarkupRenderer.pixelScale(url))
+            return out
+        } catch {
+            return url
+        }
     }
 
     /// Re-reads the file: thumbnail, dimensions, modification date.
@@ -31,6 +58,11 @@ final class Shot: ObservableObject, Identifiable {
            let w = props[kCGImagePropertyPixelWidth] as? Int,
            let h = props[kCGImagePropertyPixelHeight] as? Int {
             pixelSize = CGSize(width: w, height: h)
+        }
+        if hasMarkup, let markup, let base = MarkupRenderer.loadImage(url),
+           let rendered = MarkupRenderer.render(base: base, markup: markup) {
+            thumbnail = NSImage(cgImage: rendered, size: NSSize(width: rendered.width, height: rendered.height))
+            return
         }
         let request = QLThumbnailGenerator.Request(
             fileAt: url,
@@ -108,6 +140,7 @@ final class ShotStore: ObservableObject {
 
     func trash(_ shot: Shot) {
         NSWorkspace.shared.recycle([shot.url]) { _, _ in }
+        try? FileManager.default.removeItem(at: Markup.sidecarURL(for: shot.url))
         withAnimation(spring) {
             shots.removeAll { $0 === shot }
             if shots.count <= 1 { expanded = false }

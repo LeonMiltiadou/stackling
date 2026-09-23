@@ -113,7 +113,7 @@ final class DragSurfaceView: NSView, NSDraggingSource {
 
     private func startDrag(with event: NSEvent) {
         guard let shot else { return }
-        let item = NSDraggingItem(pasteboardWriter: shot.url as NSURL)
+        let item = NSDraggingItem(pasteboardWriter: shot.exportURL() as NSURL)
         let image = shot.thumbnail ?? NSWorkspace.shared.icon(forFile: shot.url.path)
         let maxSide: CGFloat = 200
         let scale = min(maxSide / max(image.size.width, 1), maxSide / max(image.size.height, 1), 1)

@@ -10,17 +10,32 @@ enum Actions {
         let pb = NSPasteboard.general
         pb.clearContents()
         let item = NSPasteboardItem()
-        if !shot.isVideo, let data = try? Data(contentsOf: shot.url) {
-            let type = UTType(filenameExtension: shot.url.pathExtension) ?? .png
+        let file = shot.isVideo ? shot.url : shot.exportURL()
+        if !shot.isVideo, let data = try? Data(contentsOf: file) {
+            let type = UTType(filenameExtension: file.pathExtension) ?? .png
             if type.conforms(to: .png) {
                 item.setData(data, forType: .png)
             } else if let image = NSImage(data: data), let tiff = image.tiffRepresentation {
                 item.setData(tiff, forType: .tiff)
             }
         }
-        item.setString(shot.url.absoluteString, forType: .fileURL)
+        item.setString(file.absoluteString, forType: .fileURL)
         pb.writeObjects([item])
         store.finish(shot, message: "Copied")
+    }
+
+    /// Writes the annotations into the image file for good and removes the sidecar.
+    static func flatten(_ shot: Shot) {
+        guard let markup = shot.markup, !markup.isEmpty,
+              let base = MarkupRenderer.loadImage(shot.url),
+              let rendered = MarkupRenderer.render(base: base, markup: markup) else { return }
+        do {
+            try MarkupRenderer.writePNG(rendered, to: shot.url, pixelScale: MarkupRenderer.pixelScale(shot.url))
+            shot.setMarkup(Markup())
+            shot.flash("Saved into image")
+        } catch {
+            NSAlert(error: error).runModal()
+        }
     }
 
     static func copyText(_ shot: Shot) {
@@ -56,8 +71,22 @@ enum Actions {
         }.value
     }
 
-    /// Opens in Preview (images) so you get the full markup toolbar. Videos open in their default app.
+    /// Opens the Stackshot editor. Videos open in their default app.
     static func edit(_ shot: Shot) {
+        if shot.isVideo {
+            NSWorkspace.shared.open(shot.url)
+            return
+        }
+        EditorWindowController.open(shot)
+    }
+
+    static func pin(_ shot: Shot) {
+        guard !shot.isVideo, let image = NSImage(contentsOf: shot.exportURL()) else { return }
+        PinWindow.show(image, shot: shot)
+        store.finish(shot, message: "Pinned")
+    }
+
+    static func openInPreview(_ shot: Shot) {
         if shot.isVideo {
             NSWorkspace.shared.open(shot.url)
             return
@@ -93,6 +122,10 @@ enum Actions {
                 try FileManager.default.trashItem(at: dest, resultingItemURL: nil)
             }
             try FileManager.default.moveItem(at: shot.url, to: dest)
+            let sidecar = Markup.sidecarURL(for: shot.url)
+            if FileManager.default.fileExists(atPath: sidecar.path) {
+                try? FileManager.default.moveItem(at: sidecar, to: Markup.sidecarURL(for: dest))
+            }
             shot.url = dest
             store.dismiss(shot)
         } catch {
@@ -106,7 +139,7 @@ enum Actions {
 
     static func share(_ shot: Shot, with service: NSSharingService) {
         NSApp.activate()
-        service.perform(withItems: [shot.url])
+        service.perform(withItems: [shot.exportURL()])
         store.dismiss(shot)
     }
 }

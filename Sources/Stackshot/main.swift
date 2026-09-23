@@ -23,5 +23,7 @@ enum Uninstall {
         }
         Prefs.restoreOriginals()
         print("• Put the macOS screenshot settings back the way they were")
+        NativeShortcuts.restoreOriginal()
+        print("• Gave ⇧⌘4 back to macOS")
     }
 }

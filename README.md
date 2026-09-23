@@ -24,16 +24,30 @@ Say yes, that's where your screenshots land.
 
 ## Using it
 
-**Take screenshots the normal way.** Nothing new to learn:
+### Taking screenshots
 
 | Shortcut | What it does |
 | --- | --- |
-| `⇧⌘3` | Whole screen |
-| `⇧⌘4` | Drag to pick an area (press Space to grab a window instead) |
-| `⇧⌘5` | The full toolbar: screen recording, timer, options |
+| `⇧⌘4` | **Area.** Freezes the screen first, so menus and hover states stay put. Shows a pixel loupe with exact coordinates and the colour under your cursor. |
+| `⇧⌘8` | **Window.** Hover a window and click it. Adds the soft macOS shadow (hold `⌥` when you click to skip it). |
+| `⇧⌘9` | **Full screen**, the one your mouse is on |
+| `⇧⌘3` / `⇧⌘5` | The Mac's own tools, unchanged. Use `⇧⌘5` for screen recording. These land on the stack too. |
 
-Each new shot slides into the stack. With more than one, the older ones peek out
-behind the newest.
+While picking an area:
+
+| Key | Does |
+| --- | --- |
+| Drag | Select the area |
+| `⇧` while dragging | Keep it square |
+| Hold `Space` while dragging | Move the selection around |
+| `Space` before dragging | Switch to picking a window |
+| `Esc` | Cancel |
+
+The first time you use these, macOS asks for **Screen Recording** permission. Turn Stackshot on,
+then reopen it. Stackshot uses it to freeze the screen, and nothing ever leaves your Mac.
+
+Each new shot slides into the stack in the bottom-left corner. With more than one, the older ones
+peek out behind the newest.
 
 ### Things you can do with a card
 
@@ -41,14 +55,53 @@ Hover a card to see its buttons.
 
 | Do this | What happens | Does the card leave? |
 | --- | --- | --- |
-| **Click** the image | Opens it in Preview so you can draw, crop, add text | No |
-| **Drag** it into any app | Drops the file there (Slack, Mail, Figma, Finder…) | Yes |
+| **Click** the image or **Edit** | Opens the editor (see below) | No |
+| **Drag** it into any app | Drops the file there (Slack, Mail, Figma, Finder…), edits included | Yes |
 | Drag it onto the **Trash** in the Dock | Deletes it | Yes |
-| **Copy** | Puts the image on your clipboard | Yes (hold `⌥` to keep it) |
+| **Copy** | Puts the image on your clipboard, edits included | Yes (hold `⌥` to keep it) |
 | **Text** | Reads the words in the screenshot and copies them | Yes (hold `⌥` to keep it) |
+| **📌** | Pins it to the screen (see below) | Yes (hold `⌥` to keep it) |
 | **✕** (top left) | Hides the card. The file stays on disk | Yes |
 | **🗑** (top right) | Moves the file to the Trash | Yes |
-| **…** | Move to…, Show in Finder, Open in Preview, Share, Copy File Path | Depends |
+| **…** | Move to…, Show in Finder, Open in Preview, Pin, Save Edits Into Image, Share, Copy File Path | Depends |
+
+A little ✏️ on the card means it has edits.
+
+### The editor
+
+Nine tools, each with a one-letter shortcut:
+
+| Tool | Key | Notes |
+| --- | --- | --- |
+| Select | `V` | Click to pick, drag to move, `Delete` to remove, arrow keys to nudge (`⇧` for 10px). Double-click text to edit it. |
+| Arrow | `A` | `⇧` snaps to 45° |
+| Rectangle | `R` | `⇧` for a square |
+| Ellipse | `O` | `⇧` for a circle |
+| Line | `L` | `⇧` snaps to 45° |
+| Pen | `P` | Freehand |
+| Text | `T` | Click, type, `Return` to finish |
+| Counter | `N` | Click to drop numbered steps: 1, 2, 3… |
+| Highlighter | `H` | See-through marker |
+| Redact | `X` | Pixelates the area. Exports contain the blocks only, the original pixels are gone. |
+
+- **Colours and sizes** are in the toolbar. `1` `2` `3` switch size. Picking a colour or size with something selected changes that thing.
+- Hold `⌘` and drag to move a shape without switching to Select.
+- **Beautify** (✨) puts the shot on a gradient background with padding, rounded corners and a shadow. Ready to post.
+- `⌘Z` / `⇧⌘Z` undo and redo. `⌘C` copies and closes. `Return` or **Done** keeps your edits and closes.
+
+**Your edits stay editable.** They're saved in a hidden file next to the screenshot
+(`.Screenshot … .png.stackshot`), and the original image isn't touched. Reopen it any time and
+every arrow is still there to move or delete. Copy, drag, share and pin all use the edited
+version automatically. When you want the edits burned in for good, use **Save Edits Into Image**.
+
+### Pinning
+
+A pinned shot floats above every window, handy for copying something from one app into another.
+
+- Drag it anywhere
+- Scroll or pinch to resize
+- Right-click for Copy, Edit, Actual Size and Opacity
+- Double-click or `Esc` to close
 
 ### The stack
 
@@ -74,18 +127,20 @@ Change it from the menu bar icon:
 - The **Dock badge** shows how many shots are waiting.
 - **Clicking the Dock icon** starts an area capture.
 - **Right-click the Dock icon** for all the capture options.
-- The **menu bar icon** has captures, where screenshots get saved, Open at Login, and the fade settings.
+- The **menu bar icon** has captures, where screenshots get saved, the fade settings, Open at Login, and **Use Stackshot for ⇧⌘4** (turn it off to give ⇧⌘4 back to macOS).
 
 ## What it changes on your Mac
 
-Only two things, and it remembers what they were before so it can undo them:
+Stackshot remembers what each of these was before it changed them, so uninstalling puts them back exactly.
 
-1. **Turns off the Mac's floating thumbnail.** Otherwise you'd see two previews, and the Mac
-   holds back saving the file until its thumbnail slides away. You can switch it back on from
-   the menu bar (**Show macOS Floating Thumbnail Too**).
-2. **Where screenshots are saved**, but only if you pick a new folder from the menu.
-
-If you turn on **Open at Login**, it also adds itself to your Login Items.
+| Change | Why | Turn it off |
+| --- | --- | --- |
+| Turns off the Mac's floating thumbnail | Otherwise you'd get two previews, and the Mac holds back the file until its thumbnail slides away | Menu bar → **Show macOS Floating Thumbnail Too** |
+| Takes over `⇧⌘4` | So area captures get the frozen screen and loupe | Menu bar → **Use Stackshot for ⇧⌘4** |
+| Adds `⇧⌘8` and `⇧⌘9` | Window and full-screen capture. Only while Stackshot is running. | Quit Stackshot |
+| Hidden `.stackshot` files next to screenshots you edit | Keeps your edits editable | **Save Edits Into Image**, or uninstall |
+| Where screenshots are saved | Only if you pick a new folder from the menu | Pick Desktop again |
+| Login Items | Only if you turn on **Open at Login** | Turn it off |
 
 ## Uninstall (as if it was never there)
 
@@ -100,13 +155,16 @@ It does all of this for you:
 | Step | What gets undone |
 | --- | --- |
 | 1 | Quits Stackshot |
-| 2 | Removes it from Login Items |
-| 3 | Puts the Mac's screenshot settings back to exactly what they were (floating thumbnail and save folder) |
-| 4 | Takes it out of the Dock |
-| 5 | Deletes `/Applications/Stackshot.app` and its saved settings |
-| 6 | Clears the permissions you gave it (Desktop folder, Screen Recording) |
+| 2 | Deletes the hidden `.stackshot` edit files |
+| 3 | Removes it from Login Items |
+| 4 | Puts the Mac's screenshot settings back to exactly what they were (floating thumbnail and save folder) |
+| 5 | Gives `⇧⌘4` back to macOS |
+| 6 | Takes it out of the Dock |
+| 7 | Deletes `/Applications/Stackshot.app`, its settings and caches |
+| 8 | Clears the permissions you gave it (Desktop folder, Screen Recording) |
 
 Your screenshots are **never** touched. They stay wherever they were saved.
+Edits you haven't saved into the image are lost, so use **Save Edits Into Image** first on any you want to keep.
 
 Then delete this folder if you want the code gone too.
 
@@ -117,11 +175,15 @@ Then delete this folder if you want the code gone too.
 # Quit the app (or use Quit from its menu bar icon)
 pkill -f Stackshot.app/Contents/MacOS/Stackshot
 
-# Undo login item + screenshot settings (run this before deleting the app)
+# Undo login item, screenshot settings and ⇧⌘4 (run this before deleting the app)
 /Applications/Stackshot.app/Contents/MacOS/Stackshot --uninstall
 
-# If the app is already deleted, just bring the floating thumbnail back
+# If the app is already deleted, bring the floating thumbnail back, then turn ⇧⌘4 back on in
+# System Settings → Keyboard → Keyboard Shortcuts → Screenshots
 defaults delete com.apple.screencapture show-thumbnail
+
+# Remove hidden edit files next to your screenshots
+find ~/Desktop -maxdepth 1 -name '.*.stackshot' -delete
 
 # Delete the app and its settings, clear permissions
 rm -rf /Applications/Stackshot.app
@@ -149,11 +211,16 @@ STACKSHOT_DEBUG=1 build/Stackshot.app/Contents/MacOS/Stackshot
 
 | File | What's in it |
 | --- | --- |
+| `CaptureOverlay.swift` | Frozen-screen capture: area, window, full screen, loupe |
+| `Hotkeys.swift` | ⇧⌘4 / ⇧⌘8 / ⇧⌘9, and switching the Mac's own ⇧⌘4 off and back on |
+| `Editor.swift` | The annotation editor: canvas, tools, toolbar, beautify panel |
+| `Markup.swift` | Annotations, the hidden edits file, and drawing/exporting them |
+| `PinWindow.swift` | Floating pinned screenshots |
 | `Watcher.swift` | Watches the screenshot folder and spots new screenshots |
 | `Shot.swift` | A screenshot on the stack, and the stack itself |
 | `StackView.swift` | Everything you see: cards, buttons, the expanded list |
 | `StackPanel.swift` | The floating window in the corner, sizing and fading |
 | `DragSurface.swift` | Click and drag handling on each card |
-| `Actions.swift` | Copy, grab text, edit, move, share |
+| `Actions.swift` | Copy, grab text, edit, pin, flatten, move, share |
 | `Prefs.swift` | Reading and restoring the Mac's screenshot settings, plus Stackshot's own settings |
 | `AppDelegate.swift` | Menu bar icon, Dock menu, welcome message |

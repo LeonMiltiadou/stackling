@@ -33,17 +33,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         watcher.start()
 
-        if !UserDefaults.standard.bool(forKey: "welcomed") {
+        CaptureController.shared.excludedWindowNumbers = { [weak self] in
+            [self?.panel.windowNumber].compactMap { $0 }
+        }
+        // Stackshot takes over ⇧⌘4 by default so area captures get the frozen screen and loupe.
+        if UserDefaults.standard.object(forKey: "takeOverArea") == nil {
+            UserDefaults.standard.set(true, forKey: "takeOverArea")
+        }
+        applyShortcuts()
+
+        if !UserDefaults.standard.bool(forKey: "welcomed.v2") {
             UserDefaults.standard.set(true, forKey: "welcomed")
+            UserDefaults.standard.set(true, forKey: "welcomed.v2")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.showWelcome() }
         }
+    }
+
+    private var takeOverArea: Bool { UserDefaults.standard.bool(forKey: "takeOverArea") }
+
+    private func applyShortcuts() {
+        let keys = HotKeys.shared
+        if takeOverArea {
+            if NativeShortcuts.areaShortcutEnabled { NativeShortcuts.setAreaShortcut(enabled: false) }
+            keys.register(.four) { CaptureController.shared.start(.area) }
+        } else {
+            keys.unregister(.four)
+            if !NativeShortcuts.areaShortcutEnabled { NativeShortcuts.setAreaShortcut(enabled: true) }
+        }
+        keys.register(.eight) { CaptureController.shared.start(.window) }
+        keys.register(.nine) { CaptureController.shared.captureFullScreen() }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
     /// Clicking the Dock icon starts an area capture.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        Capture.area.run()
+        CaptureController.shared.start(.area)
         return false
     }
 
@@ -69,6 +94,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         appMenu.addItem(withTitle: "Hide Stackshot", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(withTitle: "Quit Stackshot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
+
+        // Standard Edit menu: gives the editor ⌘Z, ⇧⌘Z, ⌘C and text editing shortcuts.
+        let editItem = NSMenuItem()
+        main.addItem(editItem)
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Delete", action: #selector(NSText.delete(_:)), keyEquivalent: "")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = edit
+
+        let windowItem = NSMenuItem()
+        main.addItem(windowItem)
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowMenu.addItem(withTitle: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m")
+        windowItem.submenu = windowMenu
+        NSApp.windowsMenu = windowMenu
+
         NSApp.mainMenu = main
     }
 
@@ -123,6 +172,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         native.toolTip = "Leave this off. With it on, macOS waits for its own thumbnail to vanish before saving, so screenshots show up late."
         menu.addItem(native)
 
+        let area = item("Use Stackshot for ⇧⌘4") { [weak self] in
+            guard let self else { return }
+            UserDefaults.standard.set(!self.takeOverArea, forKey: "takeOverArea")
+            self.applyShortcuts()
+        }
+        area.state = takeOverArea ? .on : .off
+        area.toolTip = "On: ⇧⌘4 freezes the screen and shows the loupe. Off: ⇧⌘4 is the Mac's own capture (still lands on the stack)."
+        menu.addItem(area)
+
         menu.addItem(fadeItem())
         menu.addItem(opacityItem())
 
@@ -173,10 +231,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func addCaptureItems(to menu: NSMenu) {
-        menu.addItem(item("Capture Area", hint: "⇧⌘4") { Capture.area.run() })
-        menu.addItem(item("Capture Window", hint: "⇧⌘4 then Space") { Capture.window.run() })
-        menu.addItem(item("Capture Entire Screen", hint: "⇧⌘3") { Capture.screen.run() })
-        menu.addItem(item("Screenshot & Record Toolbar…", hint: "⇧⌘5") { Capture.toolbar.run() })
+        menu.addItem(item("Capture Area", hint: takeOverArea ? "⇧⌘4" : nil) { CaptureController.shared.start(.area) })
+        menu.addItem(item("Capture Window", hint: "⇧⌘8") { CaptureController.shared.start(.window) })
+        menu.addItem(item("Capture Full Screen", hint: "⇧⌘9") { CaptureController.shared.captureFullScreen() })
+        menu.addItem(item("Record or Use macOS Toolbar…", hint: "⇧⌘5") { Capture.toolbar.run() })
     }
 
     private func saveLocationItem() -> NSMenuItem {
@@ -240,12 +298,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let alert = NSAlert()
         alert.messageText = "Stackshot is running"
         alert.informativeText = """
-        Take screenshots the normal way: ⇧⌘3, ⇧⌘4 or ⇧⌘5.
+        ⇧⌘4  Area, on a frozen screen with a pixel loupe
+        ⇧⌘8  Window
+        ⇧⌘9  Full screen
+        ⇧⌘3 and ⇧⌘5 still work as usual (⇧⌘5 for recording).
 
-        Each one lands in a stack in the bottom-left corner and stays there until you do something with it: copy, drag it into an app, edit, grab its text, or dismiss it.
+        Each shot lands in a stack in the bottom-left corner and stays there until you do something with it: copy, drag it into an app, edit, pin, grab its text, or dismiss it.
 
         Tips
-        • Click a card to mark it up in Preview.
+        • Click a card to annotate it: arrows, boxes, text, numbers, highlight, redact, and a nice background.
+        • Edits stay editable. Copy and drag include them automatically.
         • Hold ⌥ while copying to keep the card.
         • Dismissed cards live in the menu bar under Recently Dismissed.
         • Clicking the Dock icon starts an area capture.

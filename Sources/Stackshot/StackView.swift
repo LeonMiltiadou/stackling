@@ -262,6 +262,7 @@ private struct InfoChip: View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             HStack(spacing: 5) {
                 if shot.isVideo { Image(systemName: "video.fill") }
+                if shot.hasMarkup { Image(systemName: "pencil.tip") }
                 if let size = shot.pixelSize {
                     Text("\(Int(size.width)) × \(Int(size.height))")
                 }
@@ -306,6 +307,9 @@ private struct CardControls: View {
                 HStack {
                     RoundIcon(symbol: "xmark", help: "Dismiss (file stays on disk)") { store.dismiss(shot) }
                     Spacer()
+                    if !shot.isVideo {
+                        RoundIcon(symbol: "pin", help: "Pin to screen: floats above everything") { Actions.pin(shot) }
+                    }
                     RoundIcon(symbol: "trash", help: "Move to Trash") { store.trash(shot) }
                 }
                 Spacer()
@@ -313,7 +317,7 @@ private struct CardControls: View {
                     ActionPill(symbol: "doc.on.doc", title: "Copy", help: "Copy image. Hold ⌥ to keep it in the stack") {
                         Actions.copy(shot)
                     }
-                    ActionPill(symbol: "pencil.tip.crop.circle", title: "Edit", help: "Open in Preview to mark up") {
+                    ActionPill(symbol: "pencil.tip.crop.circle", title: "Edit", help: "Annotate, redact, beautify") {
                         Actions.edit(shot)
                     }
                     if !shot.isVideo {
@@ -338,7 +342,13 @@ private struct MoreMenu: View {
         Menu {
             Button("Move to…") { Actions.moveTo(shot) }
             Button("Show in Finder") { Actions.reveal(shot) }
-            Button(shot.isVideo ? "Open" : "Open in Preview") { Actions.edit(shot) }
+            Button(shot.isVideo ? "Open" : "Open in Preview") { Actions.openInPreview(shot) }
+            if !shot.isVideo {
+                Button("Pin to Screen") { Actions.pin(shot) }
+            }
+            if shot.hasMarkup {
+                Button("Save Edits Into Image") { Actions.flatten(shot) }
+            }
             Menu("Share") {
                 ForEach(Actions.shareServices(for: shot), id: \.title) { service in
                     Button {
