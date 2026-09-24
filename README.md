@@ -22,6 +22,21 @@ Needs macOS 14 or newer and Xcode (or the Xcode command line tools).
 The first time it runs, macOS asks if Stackshot can see your Desktop folder.
 Say yes, that's where your screenshots land.
 
+## Sharing it with someone
+
+```sh
+scripts/build.sh package
+```
+
+That makes `build/Stackshot.zip` (works on Apple Silicon and Intel Macs). Send them the zip. On their Mac:
+
+1. Unzip it and drag **Stackshot** into **Applications**
+2. Open it. macOS will say it can't check it for malware, because it isn't notarised by Apple. Click **Done**.
+3. Go to **System Settings → Privacy & Security**, scroll down, click **Open Anyway** next to Stackshot, and confirm
+4. Allow Desktop access and Screen Recording when it asks
+
+After that it opens normally. To remove it later, they can follow [Uninstall](#uninstall-as-if-it-was-never-there).
+
 ## Using it
 
 ### Taking screenshots
@@ -199,6 +214,7 @@ Then right-click Stackshot in the Dock → Options → Remove from Dock.
 ```sh
 scripts/build.sh            # build to build/Stackshot.app
 scripts/build.sh install    # build, install to /Applications, relaunch
+scripts/build.sh package    # universal build, zipped for sharing
 scripts/make-icon.sh        # redraw the icon
 ```
 
