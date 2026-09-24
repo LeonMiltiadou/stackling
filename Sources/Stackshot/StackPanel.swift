@@ -32,7 +32,7 @@ final class StackPanel: NSPanel {
 /// Keeps the panel pinned to the bottom-left corner and sized to its content.
 @MainActor
 final class StackPanelController {
-    private let panel = StackPanel()
+    private var panel = StackPanel()
     private let store: ShotStore
     private var bag = Set<AnyCancellable>()
     private var screen: NSScreen?
@@ -60,6 +60,10 @@ final class StackPanelController {
                 self.screen = nil
                 self.layout(count: self.store.shots.count, expanded: self.store.expanded)
             }
+            .store(in: &bag)
+
+        NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.activeSpaceDidChangeNotification)
+            .sink { [weak self] _ in self?.rescueIfStranded() }
             .store(in: &bag)
 
         // Polling rather than tracking areas: it keeps working while faded, when the panel
@@ -144,6 +148,25 @@ final class StackPanelController {
             pending = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
         }
+        panel.orderFrontRegardless()
+        rescueIfStranded()
+    }
+
+    /// macOS sometimes pins the panel to a single desktop even though it's set to join all of them,
+    /// and from then on it only shows up there. When that happens, swap in a fresh panel.
+    private func rescueIfStranded() {
+        guard panel.isVisible, !panel.isOnActiveSpace else { return }
+        log.notice("Stack panel was stuck on another desktop, rebuilding it")
+        let old = panel
+        let fresh = StackPanel()
+        let content = old.contentView
+        old.contentView = nil
+        old.orderOut(nil)
+        fresh.contentView = content
+        fresh.setFrame(old.frame, display: false)
+        fresh.alphaValue = old.alphaValue
+        fresh.ignoresMouseEvents = old.ignoresMouseEvents
+        panel = fresh
         panel.orderFrontRegardless()
     }
 }
