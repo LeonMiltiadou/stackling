@@ -15,6 +15,7 @@ enum Actions {
     static func copy(_ shot: Shot) {
         note("copy", shot)
         Clipboard.write(shot: shot)
+        Usage.used(shot.url, how: "copy")
         store.finish(shot, message: "Copied")
     }
 
@@ -67,6 +68,7 @@ enum Actions {
             do {
                 let gif = try await GIFMaker.cached(for: shot)
                 Clipboard.writeGIF(at: gif)
+                Usage.used(shot.url, how: "copy-gif")
                 store.finish(shot, message: "GIF copied")
             } catch {
                 Log.actions.error("copy-gif.failed file=\(shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
@@ -124,6 +126,7 @@ enum Actions {
             let text = await recognizeText(at: url)
             if let text, !text.isEmpty {
                 Clipboard.write(string: text)
+                Usage.used(url, how: "copy-text")
                 store.finish(shot, message: "Text copied")
             } else {
                 Log.actions.info("copy-text.empty file=\(url.lastPathComponent, privacy: .public)")
@@ -165,9 +168,17 @@ enum Actions {
         EditorWindowController.open(shot)
     }
 
+    /// Keep marks a shot so clean-up never clears it; pressing it again lets it go as normal.
+    static func toggleKeep(_ shot: Shot) {
+        shot.setKept(!shot.kept)
+        shot.flashDone(shot.kept ? "Kept" : "Not kept")
+        LibraryIndex.shared.scheduleRescan()
+    }
+
     static func pin(_ shot: Shot) {
         note("pin", shot)
         guard !shot.isVideo, let image = NSImage(contentsOf: shot.exportURL()) else { return }
+        Usage.used(shot.url, how: "pin")
         PinWindow.show(image, shot: shot)
         store.finish(shot, message: "Pinned")
     }
@@ -189,6 +200,7 @@ enum Actions {
     static func copyPath(_ shot: Shot) {
         note("copy-path", shot)
         Clipboard.write(string: shot.url.path)
+        Usage.used(shot.url, how: "copy-path")
         shot.flashDone("Path copied")
     }
 
@@ -225,6 +237,7 @@ enum Actions {
         Log.actions.info("share file=\(shot.url.lastPathComponent, privacy: .public) service=\(service.title, privacy: .public)")
         NSApp.activate()
         service.perform(withItems: [shot.exportURL()])
+        Usage.used(shot.url, how: "share")
         store.dismiss(shot)
     }
 

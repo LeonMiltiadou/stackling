@@ -138,12 +138,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func scheduleTidying() {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.firstTidyDelay) { [weak self] in
             guard let self else { return }
-            Library.tidy(store: self.store)
+            Cleanup.run(store: self.store)
         }
         tidyTimer = Timer.scheduledTimer(withTimeInterval: Self.tidyInterval, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                Library.tidy(store: self.store)
+                Cleanup.run(store: self.store)
             }
         }
     }

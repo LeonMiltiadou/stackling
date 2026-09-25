@@ -30,6 +30,8 @@ final class Shot: ObservableObject, Identifiable {
     @Published var toast: Toast?
     /// Annotations and beautify settings, kept beside the file until you flatten them.
     @Published var markup: Markup?
+    /// You pressed Keep: clean-up never clears it. Stored on the file itself (see `Usage`).
+    @Published private(set) var kept = false
     private(set) var modified: Date?
 
     /// How long a finished or failed message stays on the card.
@@ -45,7 +47,13 @@ final class Shot: ObservableObject, Identifiable {
         self.url = url
         self.created = created
         self.markup = Markup.load(for: url)
+        self.kept = Usage.read(url).keep
         refresh()
+    }
+
+    func setKept(_ keep: Bool) {
+        kept = keep
+        Usage.setKeep(url, keep)
     }
 
     var hasMarkup: Bool { !(markup?.isEmpty ?? true) }

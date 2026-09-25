@@ -15,6 +15,10 @@ final class LibraryIndex: ObservableObject {
         let created: Date
         /// Where it sits inside the library: nil for the top level, "Bugs", "Archive/2026-09"…
         let folder: String?
+        /// When clean-up will clear it, for loose captures that aren't kept.
+        var cleanup: Cleanup.Plan? = nil
+        /// You pressed Keep on it.
+        var kept = false
 
         var id: URL { url }
         var name: String { url.deletingPathExtension().lastPathComponent }
@@ -53,10 +57,13 @@ final class LibraryIndex: ObservableObject {
 
     func rescan() {
         let roots = Self.roots()
-        let libraryRoot = Library.root
+        let libraryRoot = Library.root, saveFolder = ScreenshotPrefs.screenshotFolder
+        let usedDays = AppSettings.cleanupUsedDays, untouchedDays = AppSettings.cleanupUntouchedDays
         isScanning = true
         Task {
-            let found = await Task.detached(priority: .utility) { Self.scan(roots: roots, libraryRoot: libraryRoot) }.value
+            let found = await Task.detached(priority: .utility) {
+                Self.scan(roots: roots, libraryRoot: libraryRoot, saveFolder: saveFolder, usedDays: usedDays, untouchedDays: untouchedDays)
+            }.value
             items = found
             isScanning = false
             Log.library.debug("index.scanned items=\(found.count)")
@@ -79,7 +86,7 @@ final class LibraryIndex: ObservableObject {
         return saveIsInside ? [library] : [library, save]
     }
 
-    nonisolated private static func scan(roots: [URL], libraryRoot: URL) -> [Item] {
+    nonisolated private static func scan(roots: [URL], libraryRoot: URL, saveFolder: URL, usedDays: Int, untouchedDays: Int) -> [Item] {
         var items: [Item] = []
         var seen = Set<String>()
         let keys: [URLResourceKey] = [.isRegularFileKey, .creationDateKey]
@@ -95,7 +102,12 @@ final class LibraryIndex: ObservableObject {
                       let kind = kind(of: url), seen.insert(url.standardizedFileURL.path).inserted else { continue }
                 if !isLibrary && !CaptureFile.isCapture(url) { continue }
                 let folder = isLibrary ? folderPath(of: url, in: libraryRoot) : nil
-                items.append(Item(url: url, kind: kind, created: values.creationDate ?? .distantPast, folder: folder))
+                let created = values.creationDate ?? .distantPast
+                let note = Usage.read(url)
+                let loose = folder == nil && CaptureFile.isCapture(url) && root.standardizedFileURL == saveFolder.standardizedFileURL
+                let plan = loose ? Cleanup.plan(note: note, created: created, edited: Markup.hasEdits(url),
+                                                usedDays: usedDays, untouchedDays: untouchedDays) : nil
+                items.append(Item(url: url, kind: kind, created: created, folder: folder, cleanup: plan, kept: note.keep))
             }
         }
         return items.sorted { $0.created > $1.created }

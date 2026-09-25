@@ -91,7 +91,7 @@ Files you bring in stay where they are.
 <summary><strong>More: keyboard shortcuts on a card, the ⋯ menu, and moving the stack</strong></summary>
 
 While your mouse is on a card: `⌘C` copies, `Space` or `E` opens it, `T` copies the text, `P` pins,
-`G` copies a recording as a GIF, `Esc` dismisses and `⌘⌫` moves it to the Trash. These only work while
+`G` copies a recording as a GIF, `K` keeps it (never cleared out), `Esc` dismisses and `⌘⌫` moves it to the Trash. These only work while
 you're pointing at a card, so they never get in the way of your typing.
 
 The **⋯** menu on a card has: File Into a folder, Name with Claude, Move to…, Show in Finder, Open in Preview,
@@ -108,9 +108,13 @@ place, grouped into Last 7 Days, Screenshots, Recordings, GIFs, your folders and
 
 - **Search reads the words inside your shots.** Type "cart.total" and last week's error screenshot turns up.
   Stackling reads each shot once, quietly in the background, on your Mac.
-- **Double-click** to open, **drag** a shot into any app, **right-click** for everything else.
-- **Select several** (`⌘`-click or `⇧`-click) to file them into a folder, add them to the stack, move them to
-  the Trash, or ✨ **Tidy** just those with Claude.
+- It works like Finder. Click to select, `⌘`-click or `⇧`-click for more, or drag a box around several.
+  `⌘A` selects everything shown.
+- `Space` previews with Quick Look, `Return` or a double-click opens, and `⌘C` copies.
+- `⌘⌫` moves to the Trash, and `⌘Z` puts it back.
+- **Drag** shots into any app, or onto a folder in the sidebar to file them. **Right-click** for
+  everything else: Keep, Rename, File Into, Show in Finder.
+- Right-click a folder to rename it or move it to the Trash. **New Folder** is at the bottom of the sidebar.
 
 <p align="center"><img src="site/images/library.jpg" width="720" alt="The Stackling library window"></p>
 
@@ -141,8 +145,18 @@ Only shortcuts appear, like `⌘C` or `⎋`, never what you type.
 
 Screenshots save to **Pictures › Stackling** instead of your Desktop.
 
-- Loose screenshots get tidied into monthly **Archive** folders after 7 days. You can change that, or turn it off.
-- **File Into** (in a card's **⋯** menu) puts a shot in a folder of its own. Those are never tidied away.
+- **Shots you're done with clear themselves out**, so the library doesn't fill up with one-off grabs:
+
+  | What you did with a loose shot | What happens |
+  | --- | --- |
+  | Copied or dragged it somewhere, then nothing else | Goes 3 days after you last used it |
+  | Never touched it | Goes after 14 days |
+  | Filed it, edited it, pinned it, or pressed **Keep** | Stays |
+
+  They go to the Trash (restorable for 30 days), or to monthly **Archive** folders if you'd rather.
+  **Leaving Soon** in the library shows what's next. To hold on to a shot, press `K` on its card or
+  choose **Keep** from its menu. Change the timings in **Settings → Library**.
+- **File Into** (in a card's **⋯** menu) puts a shot in a folder of its own. Those are never cleared out.
 - Got a Desktop full of old screenshots? **Settings → Library → Move Desktop Screenshots Into the Library…**
   moves them in one go (it asks first, and only moves screenshots).
 

@@ -43,7 +43,9 @@ final class ShotStore: ObservableObject {
             shot.flashDone("Copied")
             Log.actions.info("copy file=\(url.lastPathComponent, privacy: .public) reason=copy-on-capture")
         }
-        AutoFiler.consider(shot)
+        let source = CaptureSource.frontmost()
+        Usage.noteSource(source, for: url)
+        AutoFiler.consider(shot, source: source)
     }
 
     @discardableResult
@@ -75,6 +77,17 @@ final class ShotStore: ObservableObject {
             }
         }
         if count > 0 { Log.stack.notice("relocate count=\(count)") }
+    }
+
+    /// A folder was renamed: shots inside it follow.
+    func relocateFolder(from old: URL, to new: URL) {
+        let prefix = old.standardizedFileURL.path + "/"
+        var moves: [URL: URL] = [:]
+        for shot in shots + recent where shot.url.standardizedFileURL.path.hasPrefix(prefix) {
+            let rest = String(shot.url.standardizedFileURL.path.dropFirst(prefix.count))
+            moves[shot.url.standardizedFileURL] = new.appendingPathComponent(rest)
+        }
+        relocate(moves)
     }
 
     /// Drops dismissed entries for files that were tidied away.

@@ -43,7 +43,9 @@ If a change touches one of these paths, run the bench before and after and say w
 - Seams worth knowing: `ShotStore` (the stack's state) → `StackPanelController` (the floating panel's
   size, shrinking, hiding) → `StackView`/`ShotCard` (SwiftUI). `Actions` is every card action.
   `CaptureController` + `ScreenGrabber` do screenshots, `Recorder` + `RecordingSession` do video.
-  `Library` owns the save folder, filing and tidying. `ClaudeCode` runs the user's `claude` CLI headless.
+  `Library` owns the save folder and filing. `Cleanup` clears loose shots you're done with, using the
+  `UsageNote` each file carries in an extended attribute (uses, last use, keep, source app).
+  `LibraryGrid` is an `NSCollectionView` (Finder-style selection, keys, Quick Look, drag-out). `ClaudeCode` runs the user's `claude` CLI headless.
 - Shared helpers live in `Files.swift` (capture names, capture tag, cache paths), `Geometry.swift`
   (screens, coordinate flips, overlay windows), `Clipboard.swift`, `KeyCode.swift`. Use them rather
   than re-deriving; the refactor removed three to five copies of each.
@@ -70,8 +72,9 @@ Whoever you're working with is probably using this Mac at the same time. Check v
 `NSHostingView`, set its frame, `layoutSubtreeIfNeeded()`, then `bitmapImageRepForCachingDisplay` +
 `cacheDisplay` to a PNG and read it. To reach internal types, compile a throwaway `main.swift` together
 with `Sources/StacklingKit/*.swift` (`swiftc -module-name StacklingKit … main.swift`) in the scratchpad.
-Keep these renders window-free and non-activating; installing the real app is the one time windows
-appear.
+Never create a window to check something, not even one parked off-screen with activation prohibited:
+window managers pull any ordered-in window onto the user's active desktop. Installing the real app is
+the one time windows appear.
 
 ## Gotchas
 

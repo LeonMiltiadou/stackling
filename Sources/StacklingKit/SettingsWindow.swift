@@ -136,9 +136,14 @@ final class SettingsModel: ObservableObject {
         }
     }
 
-    var tidyAfterDays: Int {
-        get { AppSettings.tidyAfterDays }
-        set { AppSettings.tidyAfterDays = newValue; changed("tidyAfterDays", newValue) }
+    var cleanupUsedDays: Int {
+        get { AppSettings.cleanupUsedDays }
+        set { AppSettings.cleanupUsedDays = newValue; changed("cleanupUsedDays", newValue) }
+    }
+
+    var cleanupUntouchedDays: Int {
+        get { AppSettings.cleanupUntouchedDays }
+        set { AppSettings.cleanupUntouchedDays = newValue; changed("cleanupUntouchedDays", newValue) }
     }
 
     var tidyAction: Library.TidyAction {
@@ -250,22 +255,28 @@ private struct SettingsView: View {
             }
 
             Section {
-                Picker("Tidy up loose shots", selection: Binding(get: { model.tidyAfterDays }, set: { model.tidyAfterDays = $0 })) {
-                    Text("After 1 day").tag(1)
-                    Text("After 7 days").tag(7)
-                    Text("After 30 days").tag(30)
-                    Text("Never").tag(0)
+                Picker("Shots you copied or dragged out", selection: Binding(get: { model.cleanupUsedDays }, set: { model.cleanupUsedDays = $0 })) {
+                    Text("Go 1 day later").tag(1)
+                    Text("Go 3 days later").tag(3)
+                    Text("Go 7 days later").tag(7)
+                    Text("Stay").tag(0)
                 }
-                Picker("Tidy by", selection: Binding(get: { model.tidyAction }, set: { model.tidyAction = $0 })) {
-                    Text("Archiving into monthly folders").tag(Library.TidyAction.archive)
-                    Text("Moving to the Trash").tag(Library.TidyAction.trash)
+                Picker("Shots you never used", selection: Binding(get: { model.cleanupUntouchedDays }, set: { model.cleanupUntouchedDays = $0 })) {
+                    Text("Go after 7 days").tag(7)
+                    Text("Go after 14 days").tag(14)
+                    Text("Go after 30 days").tag(30)
+                    Text("Stay").tag(0)
                 }
-                .disabled(model.tidyAfterDays == 0)
+                Picker("They go to", selection: Binding(get: { model.tidyAction }, set: { model.tidyAction = $0 })) {
+                    Text("The Trash").tag(Library.TidyAction.trash)
+                    Text("Monthly Archive folders").tag(Library.TidyAction.archive)
+                }
+                .disabled(model.cleanupUsedDays == 0 && model.cleanupUntouchedDays == 0)
                 Button("Move Desktop Screenshots Into the Library…") { Library.offerToClearDesktop(store: .shared) }
             } header: {
-                Text("Tidying")
+                Text("Clearing out")
             } footer: {
-                Text("Only screenshots and recordings at the top of the save folder are tidied, never ones still on the stack or in your own folders.")
+                Text("Only loose shots at the top of the library are cleared. Anything you've filed, edited, pinned or kept (press K on a card) stays, as does anything still on the stack. See what's going next under Leaving Soon in the library. The Trash keeps things for 30 days.")
             }
 
             Section {

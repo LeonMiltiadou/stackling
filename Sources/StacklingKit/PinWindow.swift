@@ -5,6 +5,9 @@ import AppKit
 @MainActor
 final class PinWindow: NSPanel {
     private static var pins: [PinWindow] = []
+    /// Files on screen as pins right now; clean-up leaves them alone.
+    static var pinnedFiles: [URL] { pins.compactMap(\.file) }
+    private let file: URL?
 
     /// A new pin starts at most this fraction of the screen's width and height.
     private static let initialScreenFraction: CGFloat = 0.5
@@ -35,6 +38,7 @@ final class PinWindow: NSPanel {
     private init(image: NSImage, shot: Shot?) {
         self.image = image
         self.shot = shot
+        self.file = shot?.url
         self.naturalSize = image.size
 
         let screen = NSScreen.mainVisibleFrame
@@ -97,6 +101,7 @@ final class PinWindow: NSPanel {
 
     @objc func copyImage() {
         Clipboard.write(image: image)
+        if let file { Usage.used(file, how: "pin-copy") }
         Log.actions.info("pin.copy")
     }
 

@@ -11,7 +11,9 @@ enum DefaultsKey {
     static let showKeystrokes = "showKeystrokes"
     static let shrinkDelay = "fadeDelay"            // stored under its old name so existing choices carry over
     static let copyOnCapture = "copyOnCapture"
+    /// Days before an untouched loose shot is cleared (the key predates "used" shots having their own).
     static let tidyAfterDays = "tidyAfterDays"
+    static let cleanupUsedDays = "cleanupUsedDays"
     static let tidyAction = "tidyAction"
     static let takeOverArea = "takeOverArea"
     static let keepNativeThumbnail = "leaveNativeThumbnail"
@@ -34,8 +36,9 @@ enum AppSettings {
     static func registerDefaults(in defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
             DefaultsKey.shrinkDelay: 2.0,
-            DefaultsKey.tidyAfterDays: 7,
-            DefaultsKey.tidyAction: Library.TidyAction.archive.rawValue,
+            DefaultsKey.tidyAfterDays: 14,
+            DefaultsKey.cleanupUsedDays: 3,
+            DefaultsKey.tidyAction: Library.TidyAction.trash.rawValue,
             DefaultsKey.takeOverArea: true,
         ])
     }
@@ -53,9 +56,16 @@ enum AppSettings {
     }
 
     /// Days before loose captures in the inbox get tidied away. 0 means never.
-    static var tidyAfterDays: Int {
+    /// Days before a loose shot you never used is cleared. 0 means never.
+    static var cleanupUntouchedDays: Int {
         get { d.integer(forKey: DefaultsKey.tidyAfterDays) }
         set { d.set(newValue, forKey: DefaultsKey.tidyAfterDays) }
+    }
+
+    /// Days after its last copy or drag before a loose shot is cleared. 0 means never.
+    static var cleanupUsedDays: Int {
+        get { d.integer(forKey: DefaultsKey.cleanupUsedDays) }
+        set { d.set(newValue, forKey: DefaultsKey.cleanupUsedDays) }
     }
 
     static var tidyAction: Library.TidyAction {

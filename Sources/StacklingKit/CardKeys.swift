@@ -31,13 +31,15 @@ enum CardKeys {
                              applies: \.isStill, action: Actions.pin)
     static let copyGIF = Binding(id: 207, keyCode: kVK_ANSI_G, modifiers: 0, label: "G", summary: "Copy a recording as a GIF",
                                  applies: \.isVideo, action: Actions.copyGIF)
+    static let keep = Binding(id: 208, keyCode: kVK_ANSI_K, modifiers: 0, label: "K", summary: "Keep it (never cleared out)",
+                              applies: { _ in true }, action: Actions.toggleKeep)
     static let dismiss = Binding(id: 202, keyCode: kVK_Escape, modifiers: 0, label: "Esc", summary: "Dismiss",
                                  applies: { _ in true }, action: { ShotStore.shared.dismiss($0) })
     static let trash = Binding(id: 201, keyCode: kVK_Delete, modifiers: cmdKey, label: "⌘⌫", summary: "Move to Trash",
                                applies: { _ in true }, action: { ShotStore.shared.trash($0) })
 
     /// Every card key, in the order Settings lists them.
-    static let bindings: [Binding] = [copy, space, edit, copyText, pin, copyGIF, dismiss, trash]
+    static let bindings: [Binding] = [copy, space, edit, copyText, pin, copyGIF, keep, dismiss, trash]
 
     /// The keys as Settings lists them. Keys that do the same thing share a row, e.g. "Space  or  E".
     static var reference: [(keys: String, summary: String)] {

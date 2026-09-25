@@ -10,8 +10,9 @@ import Testing
 
         AppSettings.registerDefaults(in: defaults)
         #expect(defaults.double(forKey: DefaultsKey.shrinkDelay) == 2)
-        #expect(defaults.integer(forKey: DefaultsKey.tidyAfterDays) == 7)
-        #expect(defaults.string(forKey: DefaultsKey.tidyAction) == Library.TidyAction.archive.rawValue)
+        #expect(defaults.integer(forKey: DefaultsKey.tidyAfterDays) == 14, "untouched shots go after two weeks")
+        #expect(defaults.integer(forKey: DefaultsKey.cleanupUsedDays) == 3, "used shots go three days after their last use")
+        #expect(defaults.string(forKey: DefaultsKey.tidyAction) == Library.TidyAction.trash.rawValue)
         #expect(defaults.bool(forKey: DefaultsKey.takeOverArea))
         #expect(!defaults.bool(forKey: DefaultsKey.copyOnCapture))
         #expect(!defaults.bool(forKey: DefaultsKey.keepNativeThumbnail))
@@ -23,7 +24,7 @@ import Testing
 
     @MainActor @Test func cardKeysThatDoTheSameThingShareARow() {
         let rows = CardKeys.reference
-        #expect(rows.map(\.keys) == ["⌘C", "Space  or  E", "T", "P", "G", "Esc", "⌘⌫"])
+        #expect(rows.map(\.keys) == ["⌘C", "Space  or  E", "T", "P", "G", "K", "Esc", "⌘⌫"])
         #expect(rows[1].summary == "Edit, or preview a recording")
     }
 

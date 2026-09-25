@@ -3,12 +3,12 @@ import AppKit
 /// Where screenshots live, and how they stay tidy.
 ///
 ///     ~/Pictures/Stackling/
-///         new captures land here (the inbox), tidied up after a few days
-///         Archive/2026-09/   where tidied shots go (unless you pick Trash)
+///         new captures land here (the inbox), cleared out once you're done with them (see `Cleanup`)
+///         Archive/2026-09/   where cleared shots go if you pick Archive rather than the Trash
 ///         <your folders>/    anything you file somewhere is yours and never touched
 @MainActor
 enum Library {
-    static var root: URL {
+    nonisolated static var root: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/Stackling", isDirectory: true)
     }
 
@@ -65,15 +65,79 @@ enum Library {
         }
     }
 
+    /// Asks for a folder name, for filing into. The folder is made when something is filed into it.
     static func askForNewFolder() -> URL? {
+        guard let name = askForName(title: "New folder", current: "", button: "Create and File",
+                                    detail: "Inside your Stackling library. Anything you file here is kept, never cleared out.") else { return nil }
+        return root.appendingPathComponent(name, isDirectory: true)
+    }
+
+    /// Asks for a name and makes the folder straight away.
+    static func makeFolder() -> URL? {
+        guard let name = askForName(title: "New folder", current: "", button: "Create",
+                                    detail: "Inside your Stackling library. Anything you file here is kept, never cleared out.") else { return nil }
+        let folder = CaptureFile.freeURL(for: name, in: root)
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            LibraryIndex.shared.scheduleRescan()
+            Log.library.info("folder.new name=\(folder.lastPathComponent, privacy: .public)")
+            return folder
+        } catch {
+            NSAlert(error: error).runModal()
+            return nil
+        }
+    }
+
+    /// Renames a folder. Returns where it ended up, or nil if nothing changed.
+    @discardableResult
+    static func renameFolder(_ folder: URL) -> URL? {
+        guard let name = askForName(title: "Rename folder", current: folder.lastPathComponent, button: "Rename"),
+              name != folder.lastPathComponent else { return nil }
+        let dest = CaptureFile.freeURL(for: name, in: folder.deletingLastPathComponent())
+        do {
+            try FileManager.default.moveItem(at: folder, to: dest)
+            ShotStore.shared.relocateFolder(from: folder, to: dest)
+            LibraryIndex.shared.scheduleRescan()
+            Log.library.info("folder.rename")
+            return dest
+        } catch {
+            NSAlert(error: error).runModal()
+            return nil
+        }
+    }
+
+    /// Moves a folder and everything in it to the Trash, after asking.
+    static func trashFolder(_ folder: URL) -> Bool {
+        let count = (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?.filter { !$0.hasPrefix(".") }.count ?? 0
         NSApp.activate()
         let alert = NSAlert()
-        alert.messageText = "New folder"
-        alert.informativeText = "Inside your Stackling library. Anything you file here is kept, never tidied away."
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        alert.messageText = "Move “\(folder.lastPathComponent)” to the Trash?"
+        alert.informativeText = count == 0 ? "It's empty." : "The \(count == 1 ? "shot" : "\(count) shots") inside go too. You can get them back from the Trash."
+        alert.addButton(withTitle: "Move to Trash")
+        alert.addButton(withTitle: "Cancel")
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        do {
+            try FileManager.default.trashItem(at: folder, resultingItemURL: nil)
+            LibraryIndex.shared.scheduleRescan()
+            Log.library.info("folder.trash count=\(count)")
+            return true
+        } catch {
+            NSAlert(error: error).runModal()
+            return false
+        }
+    }
+
+    /// A small prompt for a file or folder name. Slashes and colons become dashes; blank means cancel.
+    static func askForName(title: String, current: String, button: String, detail: String? = nil) -> String? {
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = title
+        if let detail { alert.informativeText = detail }
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        field.stringValue = current
         field.placeholderString = "e.g. Checkout bug"
         alert.accessoryView = field
-        alert.addButton(withTitle: "Create and File")
+        alert.addButton(withTitle: button)
         alert.addButton(withTitle: "Cancel")
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return nil }
@@ -82,7 +146,13 @@ enum Library {
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
         guard !name.isEmpty, !name.hasPrefix(".") else { return nil }
-        return root.appendingPathComponent(name, isDirectory: true)
+        return name
+    }
+
+    /// Whether a file is somewhere inside the library.
+    nonisolated static func contains(_ url: URL, root: URL? = nil) -> Bool {
+        let base = (root ?? Library.root).standardizedFileURL.path
+        return url.standardizedFileURL.path.hasPrefix(base + "/")
     }
 
     // MARK: Moving files
@@ -139,37 +209,8 @@ enum Library {
         }
     }
 
-    /// The loose captures in `folder` made before `cutoff`, leaving alone anything still on the stack.
-    static func tidyCandidates(in folder: URL, olderThan cutoff: Date, sparing onStack: [URL]) -> [(url: URL, created: Date)] {
-        let spared = Set(onStack.map(\.standardizedFileURL))
-        return looseCaptures(in: folder).filter { $0.created < cutoff && !spared.contains($0.url.standardizedFileURL) }
-    }
-
-    /// Archives (or trashes) inbox captures older than the tidy setting. Leaves anything still on the stack alone.
-    static func tidy(store: ShotStore) {
-        let days = AppSettings.tidyAfterDays
-        guard days > 0 else { return }
-        let cutoff = Date().addingTimeInterval(-Double(days) * secondsPerDay)
-        let old = tidyCandidates(in: ScreenshotPrefs.screenshotFolder, olderThan: cutoff, sparing: store.shots.map(\.url))
-        guard !old.isEmpty else {
-            Log.library.debug("tidy count=0 days=\(days)")
-            return
-        }
-        let action = AppSettings.tidyAction
-        var done = 0
-        for item in old {
-            do {
-                try tidyAway(item, action: action)
-                done += 1
-            } catch {
-                Log.library.error("tidy.failed file=\(item.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-            }
-        }
-        store.forget(old.map(\.url))
-        Log.library.notice("tidy count=\(done) failed=\(old.count - done) action=\(action.rawValue, privacy: .public)")
-    }
-
-    private static func tidyAway(_ item: (url: URL, created: Date), action: TidyAction) throws {
+    /// Sends one loose capture to the Trash or the monthly Archive.
+    static func tidyAway(_ item: (url: URL, created: Date), action: TidyAction) throws {
         switch action {
         case .trash:
             try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)

@@ -33,7 +33,7 @@ struct ShotCard: View {
                 shot: shot,
                 onClick: { Actions.edit(shot) },
                 onDropped: { op in
-                    if op.contains(.delete) { store.trash(shot) } else { store.dismiss(shot) }
+                    if op.contains(.delete) { store.trash(shot) } else { Usage.used(shot.url, how: "drag"); store.dismiss(shot) }
                 },
                 onHover: { h in
                     withAnimation(.easeOut(duration: 0.14)) { hovering = h }
@@ -100,6 +100,7 @@ private struct InfoChip: View {
                     Text(formatDuration(seconds))
                     Text("·").opacity(0.6)
                 }
+                if shot.kept { Image(systemName: "star.fill").foregroundStyle(.yellow) }
                 if shot.hasMarkup { Image(systemName: "pencil.tip") }
                 if let size = shot.pixelSize {
                     Text("\(Int(size.width)) × \(Int(size.height))")
@@ -207,6 +208,7 @@ private struct MoreMenu: View {
                 }
             }
             Button("Move to…") { Actions.moveTo(shot) }
+            Button(shot.kept ? "Don't Keep" : "Keep (Never Clear Out)") { Actions.toggleKeep(shot) }
             Button("Show in Finder") { Actions.reveal(shot) }
             if shot.isVideo {
                 Button("Open in QuickTime") { Actions.openInQuickTime(shot) }

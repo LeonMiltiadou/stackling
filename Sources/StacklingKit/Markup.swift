@@ -192,6 +192,9 @@ struct Markup: Codable, Equatable {
 
     var isEmpty: Bool { items.isEmpty && !beautify.enabled }
 
+    /// Whether a shot has edits kept beside it (arrows, boxes, hidden secrets).
+    static func hasEdits(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: sidecarURL(for: url).path) }
+
     static func sidecarURL(for url: URL) -> URL {
         url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).stackling")
     }

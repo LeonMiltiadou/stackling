@@ -26,13 +26,12 @@ enum AutoFiler {
         + "`captured_from` (the app and window it was taken in), `folder_contents` (words read from shots already in each "
         + "folder) and `look_alikes` (filed shots that resemble it most, by picture and by words)."
 
-    static func consider(_ shot: Shot) {
+    static func consider(_ shot: Shot, source: CaptureSource?) {
         guard AppSettings.jevAutoFile else { return }
         guard Jev.isConfigured else { return Log.library.notice("autofile.skipped reason=no-key") }
         guard shot.isStill || shot.isVideo else { return Log.library.debug("autofile.skipped reason=gif") }
         let folders = Library.folders()
         guard !folders.isEmpty else { return Log.library.debug("autofile.skipped reason=no-folders") }
-        let source = CaptureSource.frontmost()
         Task { await file(shot, folders: folders, source: source) }
     }
 
