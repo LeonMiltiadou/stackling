@@ -11,6 +11,12 @@ struct RGBA: Codable, Equatable, Hashable {
 
     var ns: NSColor { NSColor(srgbRed: r, green: g, blue: b, alpha: a) }
 
+    /// Pale enough that white text on it would be hard to read.
+    var isLight: Bool { r + g + b > 2.4 }
+
+    /// The colour stored on redactions. They're drawn from the image's own pixels, so it's never seen.
+    static let redactFill = RGBA(0, 0, 0)
+
     static let palette: [RGBA] = [
         RGBA(1.00, 0.23, 0.19), // red
         RGBA(1.00, 0.58, 0.00), // orange
@@ -173,6 +179,8 @@ struct Beautify: Codable, Equatable {
     }
 }
 
+// MARK: - Sidecar
+
 /// Everything you added to a screenshot. Kept in a hidden file next to the image,
 /// so the original stays untouched until you choose to flatten it.
 struct Markup: Codable, Equatable {
@@ -185,257 +193,51 @@ struct Markup: Codable, Equatable {
         url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).stackshot")
     }
 
+    /// The saved edits for an image, or nil if it has none or they can't be read.
     static func load(for url: URL) -> Markup? {
-        guard let data = try? Data(contentsOf: sidecarURL(for: url)) else { return nil }
-        return try? JSONDecoder().decode(Markup.self, from: data)
+        do {
+            return try JSONDecoder().decode(Markup.self, from: Data(contentsOf: sidecarURL(for: url)))
+        } catch CocoaError.fileReadNoSuchFile {
+            return nil
+        } catch {
+            Log.editor.error("sidecar.read-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
+    /// Writes the sidecar, or removes it when there's nothing left to keep.
     func save(for url: URL) {
-        let sidecar = Markup.sidecarURL(for: url)
         if isEmpty {
-            try? FileManager.default.removeItem(at: sidecar)
-        } else if let data = try? JSONEncoder().encode(self) {
-            try? data.write(to: sidecar, options: .atomic)
+            Markup.deleteSidecar(for: url)
+            return
         }
-    }
-}
-
-// MARK: - Drawing
-
-/// Drawing shared by the editor canvas and the exporter.
-/// Everything assumes a flipped NSGraphicsContext in image-pixel space.
-enum MarkupRenderer {
-    static func loadImage(_ url: URL) -> CGImage? {
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-        return CGImageSourceCreateImageAtIndex(src, 0, nil)
-    }
-
-    /// Pixels per point for a screenshot, read from its DPI (screenshots on Retina are 144 DPI).
-    static func pixelScale(_ url: URL) -> CGFloat {
-        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
-              let dpi = props[kCGImagePropertyDPIWidth] as? Double, dpi > 0 else { return 2 }
-        return max(1, CGFloat(dpi / 72))
-    }
-
-    static func padding(for size: CGSize, _ b: Beautify) -> CGFloat {
-        b.enabled ? (max(size.width, size.height) * b.padding).rounded() : 0
-    }
-
-    static func corner(for size: CGSize, _ b: Beautify) -> CGFloat {
-        max(size.width, size.height) * b.corner
-    }
-
-    /// The gradient backdrop and drop shadow behind a beautified image.
-    static func drawBeautifyBackdrop(canvas: CGRect, image: CGRect, _ b: Beautify) {
-        guard b.enabled else { return }
-        b.gradient().draw(in: canvas, angle: -45)
-        if b.shadow {
-            NSGraphicsContext.saveGraphicsState()
-            let shadow = NSShadow()
-            shadow.shadowColor = NSColor.black.withAlphaComponent(0.35)
-            shadow.shadowBlurRadius = max(image.width, image.height) * 0.025
-            shadow.shadowOffset = NSSize(width: 0, height: -max(image.width, image.height) * 0.008)
-            shadow.set()
-            NSColor.black.setFill()
-            let r = corner(for: image.size, b)
-            NSBezierPath(roundedRect: image, xRadius: r, yRadius: r).fill()
-            NSGraphicsContext.restoreGraphicsState()
+        do {
+            try JSONEncoder().encode(self).write(to: Markup.sidecarURL(for: url), options: .atomic)
+            Log.editor.debug("sidecar.written file=\(url.lastPathComponent, privacy: .public) items=\(items.count)")
+        } catch {
+            Log.editor.error("sidecar.write-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
         }
     }
 
-    static func drawBase(_ base: CGImage, in rect: CGRect) {
-        NSImage(cgImage: base, size: rect.size).draw(
-            in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil
-        )
-    }
-
-    static func draw(_ items: [Annotation], base: CGImage, skipping: UUID? = nil) {
-        for item in items where item.id != skipping {
-            draw(item, base: base)
+    /// Takes an image's sidecar along when the image moves, so its edits follow it.
+    static func moveSidecar(from old: URL, to new: URL) {
+        let sidecar = sidecarURL(for: old)
+        guard FileManager.default.fileExists(atPath: sidecar.path) else { return }
+        do {
+            try FileManager.default.moveItem(at: sidecar, to: sidecarURL(for: new))
+        } catch {
+            Log.editor.error("sidecar.move-failed file=\(old.lastPathComponent, privacy: .public) to=\(new.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
         }
     }
 
-    static func draw(_ a: Annotation, base: CGImage) {
-        guard let ctx = NSGraphicsContext.current else { return }
-        ctx.saveGraphicsState()
-        defer { ctx.restoreGraphicsState() }
-
-        let color = a.color.ns
-        if a.tool != .redact && a.tool != .highlighter {
-            let shadow = NSShadow()
-            shadow.shadowColor = NSColor.black.withAlphaComponent(0.28)
-            shadow.shadowBlurRadius = a.width * 0.9
-            shadow.shadowOffset = NSSize(width: 0, height: -a.width * 0.3)
-            shadow.set()
+    /// Removes an image's sidecar, if it has one.
+    static func deleteSidecar(for url: URL) {
+        let sidecar = sidecarURL(for: url)
+        guard FileManager.default.fileExists(atPath: sidecar.path) else { return }
+        do {
+            try FileManager.default.removeItem(at: sidecar)
+        } catch {
+            Log.editor.error("sidecar.delete-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
         }
-
-        switch a.tool {
-        case .select:
-            break
-
-        case .arrow:
-            let p0 = a.start, p1 = a.end
-            let len = hypot(p1.x - p0.x, p1.y - p0.y)
-            guard len > 1 else { return }
-            let ux = (p1.x - p0.x) / len, uy = (p1.y - p0.y) / len
-            let head = min(max(a.width * 3.6, 16), len * 0.8)
-            let baseX = p1.x - ux * head, baseY = p1.y - uy * head
-            let halfW = head * 0.58
-            let path = NSBezierPath()
-            path.move(to: p1)
-            path.line(to: CGPoint(x: baseX - uy * halfW, y: baseY + ux * halfW))
-            path.line(to: CGPoint(x: baseX + ux * head * 0.18, y: baseY + uy * head * 0.18))
-            path.line(to: CGPoint(x: baseX + uy * halfW, y: baseY - ux * halfW))
-            path.close()
-            let shaft = NSBezierPath()
-            shaft.move(to: p0)
-            shaft.line(to: CGPoint(x: baseX + ux * head * 0.2, y: baseY + uy * head * 0.2))
-            shaft.lineWidth = a.width
-            shaft.lineCapStyle = .round
-            color.set()
-            shaft.stroke()
-            path.lineJoinStyle = .round
-            path.lineWidth = a.width * 0.5
-            path.fill()
-            path.stroke()
-
-        case .rect:
-            let r = a.width * 1.2
-            let path = NSBezierPath(roundedRect: a.rect, xRadius: r, yRadius: r)
-            path.lineWidth = a.width
-            color.setStroke()
-            path.stroke()
-
-        case .ellipse:
-            let path = NSBezierPath(ovalIn: a.rect)
-            path.lineWidth = a.width
-            color.setStroke()
-            path.stroke()
-
-        case .line:
-            let path = NSBezierPath()
-            path.move(to: a.start)
-            path.line(to: a.end)
-            path.lineWidth = a.width
-            path.lineCapStyle = .round
-            color.setStroke()
-            path.stroke()
-
-        case .pen:
-            let path = smoothPath(a.points)
-            path.lineWidth = a.width
-            color.setStroke()
-            path.stroke()
-
-        case .highlighter:
-            // Plain alpha rather than multiply, so it still shows on dark screenshots.
-            let path = smoothPath(a.points)
-            path.lineWidth = a.width * 5
-            path.lineCapStyle = .square
-            color.withAlphaComponent(0.38).setStroke()
-            path.stroke()
-
-        case .text:
-            (a.text as NSString).draw(at: a.start, withAttributes: a.textAttributes)
-
-        case .counter:
-            let r = a.counterRadius
-            let circle = CGRect(x: a.start.x - r, y: a.start.y - r, width: r * 2, height: r * 2)
-            color.setFill()
-            NSBezierPath(ovalIn: circle).fill()
-            NSShadow().set()
-            let textColor: NSColor = a.color.r + a.color.g + a.color.b > 2.4 ? .black : .white
-            let label = "\(a.number)" as NSString
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: r * 1.15, weight: .heavy),
-                .foregroundColor: textColor,
-            ]
-            let size = label.size(withAttributes: attrs)
-            label.draw(at: CGPoint(x: a.start.x - size.width / 2, y: a.start.y - size.height / 2), withAttributes: attrs)
-
-        case .redact:
-            drawPixelated(base: base, rect: a.rect)
-        }
-    }
-
-    /// Replaces the area with big blocks built from the original pixels, so exported
-    /// images don't contain anything readable underneath.
-    static func drawPixelated(base: CGImage, rect: CGRect) {
-        let bounds = CGRect(x: 0, y: 0, width: base.width, height: base.height)
-        let r = rect.integral.intersection(bounds)
-        guard r.width >= 2, r.height >= 2, let crop = base.cropping(to: r) else { return }
-        let block = max(10, Int(max(r.width, r.height) / 18))
-        let w = max(1, Int(r.width) / block), h = max(1, Int(r.height) / block)
-        guard let small = CGContext(
-            data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0,
-            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return }
-        small.interpolationQuality = .medium
-        small.draw(crop, in: CGRect(x: 0, y: 0, width: w, height: h))
-        guard let tiny = small.makeImage() else { return }
-        NSGraphicsContext.current?.imageInterpolation = .none
-        NSImage(cgImage: tiny, size: r.size).draw(
-            in: r, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.none.rawValue]
-        )
-    }
-
-    static func smoothPath(_ pts: [CGPoint]) -> NSBezierPath {
-        let path = NSBezierPath()
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        guard let first = pts.first else { return path }
-        path.move(to: first)
-        if pts.count < 3 {
-            pts.dropFirst().forEach { path.line(to: $0) }
-            return path
-        }
-        for i in 1..<pts.count - 1 {
-            let mid = CGPoint(x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2)
-            path.curve(to: mid, controlPoint1: pts[i], controlPoint2: pts[i])
-        }
-        path.line(to: pts[pts.count - 1])
-        return path
-    }
-
-    /// Flattens the screenshot with its markup into a new image.
-    static func render(base: CGImage, markup: Markup) -> CGImage? {
-        let size = CGSize(width: base.width, height: base.height)
-        let pad = padding(for: size, markup.beautify)
-        let canvas = CGSize(width: size.width + pad * 2, height: size.height + pad * 2)
-        guard let rep = NSBitmapImageRep(
-            bitmapDataPlanes: nil, pixelsWide: Int(canvas.width), pixelsHigh: Int(canvas.height),
-            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
-            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
-        ), let bitmap = NSGraphicsContext(bitmapImageRep: rep) else { return nil }
-
-        let cg = bitmap.cgContext
-        cg.translateBy(x: 0, y: canvas.height)
-        cg.scaleBy(x: 1, y: -1)
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(cgContext: cg, flipped: true)
-        NSGraphicsContext.current?.imageInterpolation = .high
-
-        let imageRect = CGRect(x: pad, y: pad, width: size.width, height: size.height)
-        drawBeautifyBackdrop(canvas: CGRect(origin: .zero, size: canvas), image: imageRect, markup.beautify)
-        if markup.beautify.enabled {
-            let r = corner(for: size, markup.beautify)
-            NSBezierPath(roundedRect: imageRect, xRadius: r, yRadius: r).addClip()
-        }
-        cg.translateBy(x: pad, y: pad)
-        drawBase(base, in: CGRect(origin: .zero, size: size))
-        draw(markup.items, base: base)
-
-        NSGraphicsContext.restoreGraphicsState()
-        return rep.cgImage
-    }
-
-    static func writePNG(_ image: CGImage, to url: URL, pixelScale: CGFloat) throws {
-        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-        let dpi = 72 * pixelScale
-        CGImageDestinationAddImage(dest, image, [kCGImagePropertyDPIWidth: dpi, kCGImagePropertyDPIHeight: dpi] as CFDictionary)
-        guard CGImageDestinationFinalize(dest) else { throw CocoaError(.fileWriteUnknown) }
     }
 }
