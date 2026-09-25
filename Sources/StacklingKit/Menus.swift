@@ -85,6 +85,8 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         menu.removeAllItems()
+        // Items say for themselves whether they can be used (Paste to Stack, Clear Stack); don't let AppKit re-enable them.
+        menu.autoenablesItems = false
         addCaptureItems(to: menu)
         menu.addItem(.separator())
         addStackItems(to: menu)
@@ -105,8 +107,12 @@ final class StatusMenu: NSObject, NSMenuDelegate {
     func dockMenu() -> NSMenu {
         let menu = NSMenu()
         addCaptureItems(to: menu)
+        menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem(title: "Add to Stack…") { Importer.chooseFiles() })
+        if Importer.clipboardHasSomething {
+            menu.addItem(ClosureMenuItem(title: "Paste to Stack") { Importer.pasteFromClipboard() })
+        }
         if !store.shots.isEmpty {
-            menu.addItem(.separator())
             menu.addItem(ClosureMenuItem(title: "Clear Stack (\(store.shots.count))") { [weak self] in self?.store.clearAll() })
         }
         return menu
@@ -131,6 +137,20 @@ final class StatusMenu: NSObject, NSMenuDelegate {
 
     private func addStackItems(to menu: NSMenu) {
         let count = store.shots.count
+        // With nothing on the stack, the quickest way back to what you just cleared goes first.
+        if count == 0, let last = store.recent.first(where: \.exists) {
+            let back = ClosureMenuItem(title: "Bring Back Last Shot") { [weak self] in self?.store.restore(last) }
+            back.image = NSImage(systemSymbolName: "arrow.uturn.backward", accessibilityDescription: nil)
+            menu.addItem(back)
+        }
+        let add = ClosureMenuItem(title: "Add to Stack…") { Importer.chooseFiles() }
+        add.image = NSImage(systemSymbolName: "plus.rectangle.on.rectangle", accessibilityDescription: nil)
+        add.toolTip = "Bring in any picture or video to mark up, hide secrets in, turn into a GIF or file away. You can also drop files on Stackling's Dock icon."
+        menu.addItem(add)
+        let paste = ClosureMenuItem(title: "Paste to Stack") { Importer.pasteFromClipboard() }
+        paste.image = NSImage(systemSymbolName: "doc.on.clipboard", accessibilityDescription: nil)
+        paste.isEnabled = Importer.clipboardHasSomething
+        menu.addItem(paste)
         if count > 1 {
             menu.addItem(ClosureMenuItem(title: store.expanded ? "Collapse Stack" : "Expand Stack") { [weak self] in self?.store.toggleExpanded() })
         }

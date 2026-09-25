@@ -23,6 +23,11 @@ mkdir -p $APP/Contents/MacOS $APP/Contents/Resources
 cp $BIN $APP/Contents/MacOS/Stackling
 cp Resources/Info.plist $APP/Contents/Info.plist
 # Release builds stamp the version from the tag (VERSION=v0.2.0 or 0.2.0) and the CI run number.
+# Local builds take the latest tag and the commit count, so About always says which build you're on.
+if [ -z "$VERSION" ] && git describe --tags --abbrev=0 >/dev/null 2>&1; then
+  VERSION=$(git describe --tags --abbrev=0)
+  BUILD_NUMBER=${BUILD_NUMBER:-$(git rev-list --count HEAD)}
+fi
 if [ -n "$VERSION" ]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION#v}" $APP/Contents/Info.plist
   /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER:-1}" $APP/Contents/Info.plist

@@ -5,6 +5,8 @@ enum CaptureFile {
     enum Kind: String {
         case screenshot = "Screenshot"
         case recording = "Screen Recording"
+        /// A picture pasted in with Paste to Stack.
+        case pasted = "Pasted Image"
     }
 
     /// The same names macOS uses: "Screenshot 2026-09-25 at 11.52.22.png", made unique if needed.
@@ -36,7 +38,7 @@ enum CaptureFile {
 
     /// Spotlight's "this is a screenshot" flag, which macOS sets on its own captures.
     static let tagName = "com.apple.metadata:kMDItemIsScreenCapture"
-    static let namePrefixes = ["Screenshot", "Screen Recording", "Screen Shot"]
+    static let namePrefixes = ["Screenshot", "Screen Recording", "Screen Shot", "Pasted Image"]
 
     /// A screenshot or screen recording, by macOS's tag or, failing that, its name.
     static func isCapture(_ url: URL) -> Bool {

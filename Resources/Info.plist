@@ -17,5 +17,19 @@
     <key>NSDesktopFolderUsageDescription</key><string>Stackling watches your screenshot folder so new screenshots appear in the stack.</string>
     <key>NSDocumentsFolderUsageDescription</key><string>Stackling watches your screenshot folder so new screenshots appear in the stack.</string>
     <key>NSDownloadsFolderUsageDescription</key><string>Stackling watches your screenshot folder so new screenshots appear in the stack.</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key><string>Picture or video</string>
+            <key>CFBundleTypeRole</key><string>Viewer</string>
+            <key>LSHandlerRank</key><string>Alternate</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>public.image</string>
+                <string>public.movie</string>
+                <string>com.adobe.pdf</string>
+            </array>
+        </dict>
+    </array>
 </dict>
 </plist>

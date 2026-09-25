@@ -76,6 +76,16 @@ Each new shot slides into the stack. **Hover a card** to see what you can do wit
 After a couple of quiet seconds the stack shrinks into a small box in its corner. Click it to open the
 stack again. If it's ever in your way, drag it anywhere by the **✥** handle on a card.
 
+**Not just new screenshots.** Anything can go in the stack and get the same treatment, like an image someone
+sent you, an old screenshot, a video to turn into a GIF, or a picture you copied:
+
+- Drop files on Stackling's **Dock icon**, or onto the stack itself
+- In Finder, right-click a file → **Open With → Stackling**
+- Menu bar icon → **Add to Stack…**, or **Paste to Stack** for whatever you've copied
+- Just cleared the stack? Menu bar icon → **Bring Back Last Shot**
+
+Files you bring in stay where they are.
+
 <details>
 <summary><strong>More: keyboard shortcuts on a card, the ⋯ menu, and moving the stack</strong></summary>
 

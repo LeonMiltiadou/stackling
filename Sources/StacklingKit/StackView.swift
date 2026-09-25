@@ -20,6 +20,10 @@ struct StackView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        // Drop pictures or videos from anywhere onto the stack to add them.
+        .dropDestination(for: URL.self) { urls, _ in
+            Importer.add(urls, from: "stack-drop") > 0
+        }
     }
 }
 

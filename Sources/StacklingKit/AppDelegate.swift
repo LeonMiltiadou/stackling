@@ -46,6 +46,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    /// Files dropped on the Dock icon, or opened with Open With → Stackling, join the stack.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        Importer.add(urls, from: "open")
+    }
+
     /// Clicking the Dock icon starts an area capture.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         Log.app.info("dock.clicked action=capture-area")
