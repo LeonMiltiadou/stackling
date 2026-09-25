@@ -11,7 +11,7 @@ final class HotKeys {
     private var installed = false
 
     enum Key: UInt32 {
-        case four = 21, eight = 28, nine = 25   // kVK_ANSI_4 / 8 / 9
+        case four = 21, seven = 26, eight = 28, nine = 25   // kVK_ANSI_4 / 7 / 8 / 9
     }
 
     private func install() {

@@ -46,7 +46,8 @@ After that it opens normally. To remove it later, they can follow [Uninstall](#u
 | `⇧⌘4` | **Area.** Freezes the screen first, so menus and hover states stay put. Shows a pixel loupe with exact coordinates and the colour under your cursor. |
 | `⇧⌘8` | **Window.** Hover a window and click it. Adds the soft macOS shadow (hold `⌥` when you click to skip it). |
 | `⇧⌘9` | **Full screen**, the one your mouse is on |
-| `⇧⌘3` / `⇧⌘5` | The Mac's own tools, unchanged. Use `⇧⌘5` for screen recording. These land on the stack too. |
+| `⇧⌘7` | **Record.** Drag an area, click once for the whole screen, or press `Space` to pick a window. Press `⇧⌘7` again (or **Stop**) to finish. |
+| `⇧⌘3` / `⇧⌘5` | The Mac's own tools, unchanged. These land on the stack too. |
 
 While picking an area:
 
@@ -57,6 +58,19 @@ While picking an area:
 | Hold `Space` while dragging | Move the selection around |
 | `Space` before dragging | Switch to picking a window |
 | `Esc` | Cancel |
+
+While recording, a small bar at the top shows the time, a **Stop** button and a bin to throw the
+recording away. The menu bar icon turns into a red stop button, and a dashed line marks the area.
+None of that ends up in the video, and neither does the stack. Pinned screenshots do. No sound is recorded.
+
+Recordings land on the stack like screenshots. Their cards show the length, and **GIF** copies a
+looping GIF, handy for Slack or a GitHub issue.
+
+Click a recording (or **Preview**) to open it in a preview window. It plays on a loop, and a
+**Video / GIF** switch shows you exactly what the GIF will look like, with its size, before you copy it.
+**Trim…** cuts the start or end off, **Save GIF** puts the GIF next to the video (and on the stack),
+and **Copy Video** / **Copy GIF** copies it and takes the card off the stack. Clicking a GIF card
+opens the same preview.
 
 The first time you use these, macOS asks for **Screen Recording** permission. Turn Stackshot on,
 then reopen it. Stackshot uses it to freeze the screen, and nothing ever leaves your Mac.
@@ -130,25 +144,24 @@ A pinned shot floats above every window, handy for copying something from one ap
 - **Clear all** hides every card. The files stay where they are.
 - Closed one by accident? Menu bar icon → **Recently Dismissed** brings it back.
 
-### Fading
+### Shrinking out of the way
 
-After a few quiet seconds the stack fades so it stays out of your way.
-While faded, clicks go straight through it to whatever is underneath.
+After 2 quiet seconds the stack shrinks into a little box in its corner: the newest shot,
+with a badge showing how many are waiting. Click the box to open the stack again.
+It stays open while your mouse is over it. A new shot opens it by itself.
 
-Move your mouse over the corner and it comes straight back.
-It fades again a few seconds after you move away, or after you do something with a card.
+While the editor or a recording preview is in front, the stack hides completely so the two
+don't overlap. It comes back when you close the window or switch apps.
 
-Change it from the menu bar icon:
-
-- **Fade When Idle**: after 2, 5 (default), 10 or 30 seconds, or never
-- **When Faded**: invisible, 10%, 20% (default) or 50%
+Change the timing from the menu bar icon under **Shrink When Idle**: after 1, 2 (default), 5 or
+10 seconds, or never.
 
 ### Other bits
 
 - The **Dock badge** shows how many shots are waiting.
 - **Clicking the Dock icon** starts an area capture.
 - **Right-click the Dock icon** for all the capture options.
-- The **menu bar icon** has captures, where screenshots get saved, the fade settings, Open at Login, and **Use Stackshot for ⇧⌘4** (turn it off to give ⇧⌘4 back to macOS).
+- The **menu bar icon** has captures, where screenshots get saved, when the stack shrinks, Open at Login, and **Use Stackshot for ⇧⌘4** (turn it off to give ⇧⌘4 back to macOS).
 
 ## What it changes on your Mac
 

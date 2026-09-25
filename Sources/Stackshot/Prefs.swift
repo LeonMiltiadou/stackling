@@ -102,15 +102,9 @@ enum Capture {
 enum Settings {
     private static var d: UserDefaults { .standard }
 
-    /// Seconds of quiet before the stack fades. 0 means never.
+    /// Seconds of quiet before the stack shrinks into a little box. 0 means never.
     static var fadeDelay: Double {
-        get { d.object(forKey: "fadeDelay") as? Double ?? 5 }
+        get { d.object(forKey: "fadeDelay") as? Double ?? 2 }
         set { d.set(newValue, forKey: "fadeDelay") }
-    }
-
-    /// How visible the stack is while faded.
-    static var fadedOpacity: Double {
-        get { d.object(forKey: "fadedOpacity") as? Double ?? 0.2 }
-        set { d.set(newValue, forKey: "fadedOpacity") }
     }
 }

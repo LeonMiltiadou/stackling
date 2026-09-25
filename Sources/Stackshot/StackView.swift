@@ -13,6 +13,8 @@ enum Layout {
     static let gap: CGFloat = 10
     static let listVPad: CGFloat = 8
     static let screenMargin: CGFloat = 2
+    static let miniW: CGFloat = 84
+    static let miniH: CGFloat = 56
 
     static var panelWidth: CGFloat { cardW + pad * 2 }
 
@@ -38,10 +40,16 @@ struct StackView: View {
 
     var body: some View {
         Group {
-            if store.expanded {
+            if store.minimized, let top = store.shots.first {
+                MiniStack(store: store, top: top)
+                    .transition(.scale(scale: 0.4, anchor: .bottomLeading).combined(with: .opacity))
+            } else if store.expanded {
                 ExpandedStack(store: store)
             } else if let top = store.shots.first {
                 CollapsedStack(store: store, top: top)
+                    .transition(store.minimized
+                        ? .scale(scale: 0.25, anchor: .bottomLeading).combined(with: .opacity)
+                        : .opacity)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -142,6 +150,63 @@ private struct GhostCard: View {
     }
 }
 
+// MARK: - Minimized
+
+/// The stack shrunk down after a quiet spell: the newest shot as a thumbnail, and how many there are.
+private struct MiniStack: View {
+    @ObservedObject var store: ShotStore
+    @ObservedObject var top: Shot
+    @State private var hover = false
+
+    var body: some View {
+        Button {
+            store.setMinimized(false)
+        } label: {
+            ZStack {
+                Rectangle().fill(.regularMaterial)
+                if let image = top.thumbnail {
+                    Image(nsImage: image).resizable().aspectRatio(contentMode: .fill)
+                        .frame(width: Layout.miniW, height: Layout.miniH)
+                        .clipped()
+                }
+                if top.isVideo {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 24, height: 24)
+                        .background(Circle().fill(Color.black.opacity(0.55)))
+                }
+            }
+            .frame(width: Layout.miniW, height: Layout.miniH)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(.white.opacity(hover ? 0.45 : 0.2), lineWidth: 1)
+            )
+            .overlay(alignment: .topTrailing) {
+                if store.shots.count > 1 {
+                    Text("\(store.shots.count)")
+                        .font(.system(size: 11, weight: .bold).monospacedDigit())
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(Capsule().fill(Color.accentColor))
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.35), lineWidth: 1))
+                        .offset(x: 7, y: -7)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .scaleEffect(hover ? 1.06 : 1, anchor: .bottomLeading)
+        .shadow(color: .black.opacity(0.3), radius: hover ? 10 : 6, y: 3)
+        .animation(.easeOut(duration: 0.12), value: hover)
+        .onHover { hover = $0 }
+        .help(store.shots.count > 1 ? "Show your \(store.shots.count) screenshots" : "Show the stack")
+        .padding(Layout.pad)
+    }
+}
+
 // MARK: - Expanded
 
 private struct ExpandedStack: View {
@@ -239,7 +304,15 @@ struct ShotCard: View {
             }
 
             if let toast = shot.toast {
-                Label(toast, systemImage: toast.hasSuffix("…") ? "text.viewfinder" : "checkmark.circle.fill")
+                HStack(spacing: 8) {
+                    // "…" means still working on it.
+                    if toast.hasSuffix("…") {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Image(systemName: toast.hasPrefix("Couldn't") ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+                    }
+                    Text(toast)
+                }
                     .font(.system(size: 14, weight: .semibold))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
@@ -266,6 +339,10 @@ private struct InfoChip: View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             HStack(spacing: 5) {
                 if shot.isVideo { Image(systemName: "video.fill") }
+                if shot.isVideo, let seconds = shot.duration {
+                    Text(String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60))
+                    Text("·").opacity(0.6)
+                }
                 if shot.hasMarkup { Image(systemName: "pencil.tip") }
                 if let size = shot.pixelSize {
                     Text("\(Int(size.width)) × \(Int(size.height))")
@@ -313,20 +390,31 @@ private struct CardControls: View {
                     Spacer()
                     MoveControls(store: store)
                     Spacer()
-                    if !shot.isVideo {
+                    if shot.isStill {
                         RoundIcon(symbol: "pin", help: "Pin to screen: floats above everything") { Actions.pin(shot) }
                     }
                     RoundIcon(symbol: "trash", help: "Move to Trash") { store.trash(shot) }
                 }
                 Spacer()
                 HStack(spacing: 6) {
-                    ActionPill(symbol: "doc.on.doc", title: "Copy", help: "Copy image. Hold ⌥ to keep it in the stack") {
+                    ActionPill(symbol: "doc.on.doc", title: "Copy", help: "Copy \(shot.isVideo ? "the video" : "image"). Hold ⌥ to keep it in the stack") {
                         Actions.copy(shot)
                     }
-                    ActionPill(symbol: "pencil.tip.crop.circle", title: "Edit", help: "Annotate, redact, beautify") {
-                        Actions.edit(shot)
+                    if shot.isStill {
+                        ActionPill(symbol: "pencil.tip.crop.circle", title: "Edit", help: "Annotate, redact, beautify") {
+                            Actions.edit(shot)
+                        }
+                    } else {
+                        ActionPill(symbol: "play.fill", title: "Preview", help: shot.isVideo ? "Watch it, see the GIF version, trim the ends" : "Watch the GIF") {
+                            Actions.edit(shot)
+                        }
                     }
-                    if !shot.isVideo {
+                    if shot.isVideo {
+                        ActionPill(symbol: "photo.stack", title: "GIF", help: "Copy as a looping GIF, for Slack or GitHub") {
+                            Actions.copyGIF(shot)
+                        }
+                    }
+                    if shot.isStill {
                         ActionPill(symbol: "text.viewfinder", title: "Text", help: "Copy the text in this screenshot") {
                             Actions.copyText(shot)
                         }
@@ -348,8 +436,14 @@ private struct MoreMenu: View {
         Menu {
             Button("Move to…") { Actions.moveTo(shot) }
             Button("Show in Finder") { Actions.reveal(shot) }
-            Button(shot.isVideo ? "Open" : "Open in Preview") { Actions.openInPreview(shot) }
-            if !shot.isVideo {
+            if shot.isVideo {
+                Button("Open in QuickTime") { Actions.openInQuickTime(shot) }
+                Button("Copy as GIF") { Actions.copyGIF(shot) }
+                Button("Save as GIF") { Actions.saveGIF(shot) }
+            } else {
+                Button("Open in Preview") { Actions.openInPreview(shot) }
+            }
+            if shot.isStill {
                 Button("Pin to Screen") { Actions.pin(shot) }
             }
             if shot.hasMarkup {
