@@ -34,8 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .store(in: &bag)
 
         // The native thumbnail delays saving the file and would double up with our stack.
-        if Prefs.nativeThumbnailEnabled && !UserDefaults.standard.bool(forKey: "leaveNativeThumbnail") {
-            Prefs.setNativeThumbnail(false)
+        if ScreenshotPrefs.nativeThumbnailEnabled && !UserDefaults.standard.bool(forKey: "leaveNativeThumbnail") {
+            ScreenshotPrefs.setNativeThumbnail(false)
         }
 
         Library.adoptIfOnDesktop()
@@ -223,7 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(recentItem)
 
         menu.addItem(.separator())
-        menu.addItem(item("Open Library") { NSWorkspace.shared.open(Prefs.screenshotFolder) })
+        menu.addItem(item("Open Library") { NSWorkspace.shared.open(ScreenshotPrefs.screenshotFolder) })
         let settings = item("Settings…") { SettingsWindowController.show() }
         settings.keyEquivalent = ","
         menu.addItem(settings)
@@ -244,7 +244,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if !Recorder.shared.isRecording {
             menu.addItem(item("Record Screen…", hint: "⇧⌘7") { CaptureController.shared.start(.area, for: .recording) })
         }
-        menu.addItem(item("macOS Screenshot Toolbar…", hint: "⇧⌘5") { Capture.toolbar.run() })
+        menu.addItem(item("macOS Screenshot Toolbar…", hint: "⇧⌘5") { SystemScreenshotToolbar.open() })
     }
 
     private func item(_ title: String, hint: String? = nil, _ action: @escaping () -> Void) -> NSMenuItem {
@@ -301,13 +301,4 @@ final class ClosureMenuItem: NSMenuItem {
     required init(coder: NSCoder) { fatalError() }
 
     @objc private func fire() { handler() }
-}
-
-extension NSRect {
-    func aspectFit(_ size: NSSize) -> NSRect {
-        guard size.width > 0, size.height > 0 else { return self }
-        let scale = min(width / size.width, height / size.height)
-        let w = size.width * scale, h = size.height * scale
-        return NSRect(x: midX - w / 2, y: midY - h / 2, width: w, height: h)
-    }
 }

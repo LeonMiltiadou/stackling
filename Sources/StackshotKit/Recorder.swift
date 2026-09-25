@@ -99,7 +99,7 @@ final class Recorder: ObservableObject {
     }
 
     private static func moveIntoPlace(_ temp: URL) throws -> URL {
-        let folder = Prefs.screenshotFolder
+        let folder = ScreenshotPrefs.screenshotFolder
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
         let stem = "Screen Recording \(formatter.string(from: Date()))"

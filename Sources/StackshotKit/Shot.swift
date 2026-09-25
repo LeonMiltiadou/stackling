@@ -136,7 +136,7 @@ final class ShotStore: ObservableObject {
 
     /// A brand-new screenshot or recording. Also copies it if you've asked for that.
     func addCapture(_ url: URL, created: Date = Date()) {
-        guard add(url, created: created), Settings.copyOnCapture, let shot = shots.first(where: { $0.url == url }) else { return }
+        guard add(url, created: created), AppSettings.copyOnCapture, let shot = shots.first(where: { $0.url == url }) else { return }
         Actions.writeToPasteboard(shot)
         shot.flash("Copied")
     }

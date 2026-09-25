@@ -20,8 +20,8 @@ enum Library {
         let d = UserDefaults.standard
         guard !d.bool(forKey: "library.adopted") else { return }
         d.set(true, forKey: "library.adopted")
-        guard Prefs.screenshotFolder.standardizedFileURL == Prefs.desktop.standardizedFileURL else { return }
-        Prefs.setScreenshotFolder(root)
+        guard ScreenshotPrefs.screenshotFolder.standardizedFileURL == ScreenshotPrefs.desktop.standardizedFileURL else { return }
+        ScreenshotPrefs.setScreenshotFolder(root)
         log.notice("Screenshots now save to \(root.path, privacy: .public)")
     }
 
@@ -121,11 +121,11 @@ enum Library {
 
     /// Archives (or trashes) inbox captures older than the tidy setting. Leaves anything still on the stack alone.
     static func tidy(store: ShotStore) {
-        let days = Settings.tidyAfterDays
+        let days = AppSettings.tidyAfterDays
         guard days > 0 else { return }
         let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
         let onStack = Set(store.shots.map(\.url.standardizedFileURL))
-        let old = looseCaptures(in: Prefs.screenshotFolder).filter { $0.created < cutoff && !onStack.contains($0.url.standardizedFileURL) }
+        let old = looseCaptures(in: ScreenshotPrefs.screenshotFolder).filter { $0.created < cutoff && !onStack.contains($0.url.standardizedFileURL) }
         guard !old.isEmpty else { return }
 
         let month = DateFormatter()
@@ -133,7 +133,7 @@ enum Library {
         var done = 0
         for item in old {
             do {
-                switch Settings.tidyAction {
+                switch AppSettings.tidyAction {
                 case .trash:
                     try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
                     try? FileManager.default.removeItem(at: Markup.sidecarURL(for: item.url))
@@ -148,14 +148,14 @@ enum Library {
             }
         }
         store.forget(old.map(\.url))
-        log.notice("Tidied \(done) old captures (\(Settings.tidyAction.rawValue, privacy: .public))")
+        log.notice("Tidied \(done) old captures (\(AppSettings.tidyAction.rawValue, privacy: .public))")
     }
 
     // MARK: Desktop
 
     /// Offers to move every screenshot and recording off the Desktop into the library.
     static func offerToClearDesktop(store: ShotStore) {
-        let loose = looseCaptures(in: Prefs.desktop)
+        let loose = looseCaptures(in: ScreenshotPrefs.desktop)
         NSApp.activate()
         let alert = NSAlert()
         guard !loose.isEmpty else {

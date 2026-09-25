@@ -43,7 +43,7 @@ final class FolderWatcher {
 @MainActor
 final class ScreenshotWatcher {
     private let store: ShotStore
-    private(set) var folder: URL = Prefs.screenshotFolder
+    private(set) var folder: URL = ScreenshotPrefs.screenshotFolder
     private var watcher: FolderWatcher?
     private var known: [URL: Date] = [:]
     private let launched = Date()
@@ -56,7 +56,7 @@ final class ScreenshotWatcher {
     }
 
     func start() {
-        watch(Prefs.screenshotFolder)
+        watch(ScreenshotPrefs.screenshotFolder)
         // The screenshot location can be changed from the ⌘⇧5 toolbar, so keep an eye on it.
         locationTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.checkLocation() }
@@ -64,7 +64,7 @@ final class ScreenshotWatcher {
     }
 
     func checkLocation() {
-        let current = Prefs.screenshotFolder
+        let current = ScreenshotPrefs.screenshotFolder
         if current.standardizedFileURL != folder.standardizedFileURL { watch(current) }
     }
 

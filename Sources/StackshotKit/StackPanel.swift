@@ -106,7 +106,7 @@ final class StackPanelController {
         let content = panel.frame.insetBy(dx: Layout.pad - 6, dy: Layout.pad - 6)
         let hovering = NSMouseInRect(NSEvent.mouseLocation, content, false)
         if hovering { lastActivity = Date() }
-        let delay = Settings.fadeDelay
+        let delay = AppSettings.shrinkDelay
         if delay > 0, !hovering, !store.minimized, Date().timeIntervalSince(lastActivity) > delay {
             store.setMinimized(true)
         }

@@ -39,16 +39,16 @@ extension Notification.Name {
 /// Settings that need something to happen when they change, not just a stored value.
 @MainActor
 final class SettingsModel: ObservableObject {
-    @Published var saveFolder = Prefs.screenshotFolder
+    @Published var saveFolder = ScreenshotPrefs.screenshotFolder
 
     var shrinkAfter: Double {
-        get { Settings.fadeDelay }
-        set { Settings.fadeDelay = newValue; changed() }
+        get { AppSettings.shrinkDelay }
+        set { AppSettings.shrinkDelay = newValue; changed() }
     }
 
     var copyOnCapture: Bool {
-        get { Settings.copyOnCapture }
-        set { Settings.copyOnCapture = newValue; changed() }
+        get { AppSettings.copyOnCapture }
+        set { AppSettings.copyOnCapture = newValue; changed() }
     }
 
     var takeOverArea: Bool {
@@ -65,22 +65,22 @@ final class SettingsModel: ObservableObject {
     }
 
     var nativeThumbnail: Bool {
-        get { Prefs.nativeThumbnailEnabled }
+        get { ScreenshotPrefs.nativeThumbnailEnabled }
         set {
-            Prefs.setNativeThumbnail(newValue)
+            ScreenshotPrefs.setNativeThumbnail(newValue)
             UserDefaults.standard.set(newValue, forKey: "leaveNativeThumbnail")
             changed()
         }
     }
 
     var tidyAfterDays: Int {
-        get { Settings.tidyAfterDays }
-        set { Settings.tidyAfterDays = newValue; changed() }
+        get { AppSettings.tidyAfterDays }
+        set { AppSettings.tidyAfterDays = newValue; changed() }
     }
 
     var tidyAction: Library.TidyAction {
-        get { Settings.tidyAction }
-        set { Settings.tidyAction = newValue; changed() }
+        get { AppSettings.tidyAction }
+        set { AppSettings.tidyAction = newValue; changed() }
     }
 
     var savesToLibrary: Bool { saveFolder.standardizedFileURL == Library.root.standardizedFileURL }
@@ -98,8 +98,8 @@ final class SettingsModel: ObservableObject {
     }
 
     private func setFolder(_ url: URL) {
-        Prefs.setScreenshotFolder(url)
-        saveFolder = Prefs.screenshotFolder
+        ScreenshotPrefs.setScreenshotFolder(url)
+        saveFolder = ScreenshotPrefs.screenshotFolder
         changed()
     }
 

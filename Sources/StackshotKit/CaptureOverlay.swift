@@ -218,7 +218,7 @@ final class CaptureController {
     // MARK: Saving
 
     private func save(_ image: CGImage, pixelScale: CGFloat) {
-        let folder = Prefs.screenshotFolder
+        let folder = ScreenshotPrefs.screenshotFolder
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd 'at' HH.mm.ss"
         let stem = "Screenshot \(formatter.string(from: Date()))"
@@ -259,12 +259,6 @@ final class CaptureController {
     private func mouseScreen() -> NSScreen {
         let mouse = NSEvent.mouseLocation
         return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
-    }
-}
-
-extension NSScreen {
-    var displayID: CGDirectDisplayID? {
-        deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
     }
 }
 
