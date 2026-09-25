@@ -92,7 +92,15 @@ final class Recorder: ObservableObject {
         outline?.close()
         outline = nil
         Task {
-            guard let temp = await session.finish(), !discard else { return }
+            guard let temp = await session.finish() else { return }
+            if discard {
+                do {
+                    try FileManager.default.removeItem(at: temp)
+                } catch {
+                    Log.recording.error("discard.cleanup-failed error=\(error.localizedDescription, privacy: .public)")
+                }
+                return
+            }
             do {
                 let url = try Self.moveIntoPlace(temp)
                 Log.recording.info("saved file=\(url.lastPathComponent, privacy: .public) size=\(url.formattedFileSize ?? "?", privacy: .public)")

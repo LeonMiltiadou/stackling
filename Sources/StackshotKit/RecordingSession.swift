@@ -37,7 +37,8 @@ final class RecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, @unche
     let codec: AVVideoCodecType
     var codecName: String { codec == .hevc ? "hevc" : "h264" }
 
-    private let stream: SCStream
+    /// Made right after init, because it reports errors back to this session as its delegate.
+    private var stream: SCStream!
     private let writer: AVAssetWriter
     private let input: AVAssetWriterInput
     private let queue = DispatchQueue(label: "com.leonmiltiadou.stackshot.recording")
@@ -57,8 +58,8 @@ final class RecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, @unche
         writer.add(input)
 
         let config = Self.makeStreamConfig(width: width, height: height, sourceRect: sourceRect)
-        stream = SCStream(filter: filter, configuration: config, delegate: nil)
         super.init()
+        stream = SCStream(filter: filter, configuration: config, delegate: self)
     }
 
     private static func makeStreamConfig(width: Int, height: Int, sourceRect: CGRect?) -> SCStreamConfiguration {
