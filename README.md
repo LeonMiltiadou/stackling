@@ -24,16 +24,23 @@ If you'd already picked another folder, Stackshot leaves it alone.
 
 ## Sharing it with someone
 
+The easy way is a release. Tag a version and push it:
+
 ```sh
-scripts/build.sh package
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
-That makes `build/Stackshot.zip` (works on Apple Silicon and Intel Macs). Send them the zip. On their Mac:
+GitHub Actions builds it for Apple Silicon and Intel, stamps the version in, and attaches `Stackshot.zip`
+to a release on the repo's **Releases** page. Send people that link. No Xcode needed on their side.
+
+To make the zip yourself instead, run `scripts/build.sh package`, which writes `build/Stackshot.zip`.
+
+Either way, on their Mac:
 
 1. Unzip it and drag **Stackshot** into **Applications**
 2. Open it. macOS will say it can't check it for malware, because it isn't notarised by Apple. Click **Done**.
 3. Go to **System Settings → Privacy & Security**, scroll down, click **Open Anyway** next to Stackshot, and confirm
-4. Allow Desktop access and Screen Recording when it asks
+4. Allow Screen Recording when it asks
 
 After that it opens normally. To remove it later, they can follow [Uninstall](#uninstall-as-if-it-was-never-there).
 
