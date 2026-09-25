@@ -78,7 +78,7 @@ actor LookAlikes {
         guard let image = await SearchIndex.firstImage(of: url) else { return nil }
         let request = VNGenerateImageFeaturePrintRequest()
         do {
-            try VNImageRequestHandler(cgImage: image).perform([request])
+            try await VisionWork.perform([request], on: image)
         } catch {
             Log.library.error("lookalikes.print-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             return nil

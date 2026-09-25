@@ -91,7 +91,7 @@ enum SecretFinder {
             // Correction "fixes" tokens into dictionary words, which is exactly wrong here.
             request.usesLanguageCorrection = false
             do {
-                try VNImageRequestHandler(cgImage: image).perform([request])
+                try await VisionWork.perform([request], on: image)
             } catch {
                 Log.editor.error("secrets.ocr-failed error=\(error.localizedDescription, privacy: .public)")
                 return nil

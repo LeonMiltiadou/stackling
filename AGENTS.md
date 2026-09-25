@@ -103,6 +103,10 @@ the one time windows appear.
   `Stackling --save-jev-key` on stdin): an item added with the `security` tool makes macOS prompt on every
   read. `JevKey` reads it once per launch; `exists()`/`provider()` use attributes only, so they never
   prompt. The live test runs only with `STACKLING_JEV_KEY=… swift test --filter JevTests`.
+- **Vision calls go through `VisionWork`**, never `VNImageRequestHandler.perform` on Swift's shared async
+  threads: Vision blocks while it works, and a few at once can use up the pool and freeze everything (it hung
+  CI on 3-core runners). Check with `LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test`, which shrinks the
+  pool to one thread.
 - **Renamed from Stackshot**: `RenameMigration` runs once at launch (before registered defaults exist) and
   copies the old app's settings, moves `~/Pictures/Stackshot`, and rewrites saved stack paths. Old
   `.stackshot` edits files are renamed on first touch in `Markup`. Keep this until nobody's upgrading from 0.1.

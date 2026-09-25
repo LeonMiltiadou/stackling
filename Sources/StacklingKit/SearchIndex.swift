@@ -134,7 +134,7 @@ final class SearchIndex: ObservableObject {
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = true
         do {
-            try VNImageRequestHandler(cgImage: image).perform([request])
+            try await VisionWork.perform([request], on: image)
         } catch {
             return ""
         }

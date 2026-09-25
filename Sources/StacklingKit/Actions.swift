@@ -170,7 +170,7 @@ enum Actions {
             request.usesLanguageCorrection = true
             request.automaticallyDetectsLanguage = true
             do {
-                try VNImageRequestHandler(cgImage: image).perform([request])
+                try await VisionWork.perform([request], on: image)
             } catch {
                 Log.actions.error("copy-text.failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 return nil
