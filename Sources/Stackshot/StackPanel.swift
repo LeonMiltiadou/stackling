@@ -29,7 +29,11 @@ final class StackPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
-/// Keeps the panel pinned to the bottom-left corner and sized to its content.
+private extension NSPoint {
+    func offsetBy(_ d: CGFloat) -> NSPoint { NSPoint(x: x + d, y: y + d) }
+}
+
+/// Keeps the panel in the bottom-left corner (or wherever you dragged it) and sized to its content.
 @MainActor
 final class StackPanelController {
     private var panel = StackPanel()
@@ -49,16 +53,16 @@ final class StackPanelController {
         host.sizingOptions = []
         panel.contentView = host
 
-        Publishers.CombineLatest(store.$shots, store.$expanded)
+        Publishers.CombineLatest3(store.$shots, store.$expanded, store.$customOrigin)
             .receive(on: RunLoop.main)
-            .sink { [weak self] shots, expanded in self?.layout(count: shots.count, expanded: expanded) }
+            .sink { [weak self] shots, expanded, origin in self?.layout(count: shots.count, expanded: expanded, origin: origin) }
             .store(in: &bag)
 
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .sink { [weak self] _ in
                 guard let self else { return }
                 self.screen = nil
-                self.layout(count: self.store.shots.count, expanded: self.store.expanded)
+                self.layout(count: self.store.shots.count, expanded: self.store.expanded, origin: self.store.customOrigin)
             }
             .store(in: &bag)
 
@@ -108,22 +112,29 @@ final class StackPanelController {
         return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
     }
 
-    private func layout(count: Int, expanded: Bool) {
+    private func layout(count: Int, expanded: Bool, origin: NSPoint?) {
         pending?.cancel()
         poke()
 
         guard count > 0 else {
             // Let the exit animation play before hiding.
             let work = DispatchWorkItem { [weak self] in
-                self?.panel.orderOut(nil)
-                self?.screen = nil
+                guard let self else { return }
+                self.panel.orderOut(nil)
+                self.screen = nil
+                // An empty stack starts again in the corner.
+                if self.store.customOrigin != nil { self.store.customOrigin = nil }
             }
             pending = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.45, execute: work)
             return
         }
 
-        if !panel.isVisible || screen == nil { screen = mouseScreen() }
+        if let origin, let moved = NSScreen.screens.first(where: { NSMouseInRect(origin.offsetBy(Layout.pad), $0.frame, false) }) {
+            screen = moved
+        } else if !panel.isVisible || screen == nil {
+            screen = mouseScreen()
+        }
         let visible = (screen ?? mouseScreen()).visibleFrame
 
         let maxList = visible.height - Layout.screenMargin * 2 - Layout.pad * 2 - Layout.headerH - 8
@@ -132,14 +143,22 @@ final class StackPanelController {
         let height = expanded
             ? Layout.expandedHeight(count, maxList: maxList)
             : Layout.collapsedHeight(count)
-        let target = NSRect(
+        var target = NSRect(
             x: visible.minX + Layout.screenMargin,
             y: visible.minY + Layout.screenMargin,
             width: Layout.panelWidth,
             height: min(height, visible.height)
         )
+        if let origin {
+            // Grow upwards from where you left it, but never off the screen.
+            target.origin.x = min(max(origin.x, visible.minX - Layout.pad), visible.maxX - target.width + Layout.pad)
+            target.origin.y = min(max(origin.y, visible.minY - Layout.pad), visible.maxY - target.height + Layout.pad)
+        }
 
-        if !panel.isVisible || target.height >= panel.frame.height {
+        if panel.isVisible, target.size == panel.frame.size, target.origin != panel.frame.origin {
+            // Only the position changed, e.g. going back to the corner: glide there.
+            panel.setFrame(target, display: true, animate: true)
+        } else if !panel.isVisible || target.height >= panel.frame.height {
             // Grow right away so nothing gets clipped mid-animation.
             panel.setFrame(target, display: true)
         } else {

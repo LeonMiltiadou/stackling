@@ -64,6 +64,10 @@ then reopen it. Stackshot uses it to freeze the screen, and nothing ever leaves 
 Each new shot slides into the stack in the bottom-left corner. With more than one, the older ones
 peek out behind the newest.
 
+If the stack is in the way, drag it by the ✥ on any card (or by the title bar when it's expanded).
+New shots join it wherever it is. Drag it near the corner and it snaps back in.
+Once the stack is empty it goes back to the corner.
+
 ### Things you can do with a card
 
 Hover a card to see its buttons.
@@ -77,6 +81,8 @@ Hover a card to see its buttons.
 | **Text** | Reads the words in the screenshot and copies them | Yes (hold `⌥` to keep it) |
 | **📌** | Pins it to the screen (see below) | Yes (hold `⌥` to keep it) |
 | **✕** (top left) | Hides the card. The file stays on disk | Yes |
+| Drag **✥** (top middle) | Moves the whole stack somewhere else, handy when you need to screenshot the bottom-left | No |
+| **↙** (next to ✥) | Puts the stack back in the corner. Double-clicking ✥ or dropping it near the corner does the same | No |
 | **🗑** (top right) | Moves the file to the Trash | Yes |
 | **…** | Move to…, Show in Finder, Open in Preview, Pin, Save Edits Into Image, Share, Copy File Path | Depends |
 

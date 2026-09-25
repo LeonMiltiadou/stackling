@@ -109,6 +109,8 @@ final class ShotStore: ObservableObject {
     @Published private(set) var recent: [Shot] = []
     /// Set by the panel controller based on the screen it lives on.
     @Published var maxListHeight: CGFloat = 600
+    /// Where you dragged the stack to (the panel's bottom-left), or nil for the usual corner.
+    @Published var customOrigin: NSPoint?
 
     private let spring = Animation.spring(response: 0.38, dampingFraction: 0.82)
 

@@ -130,6 +130,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if count > 1 {
             menu.addItem(item(store.expanded ? "Collapse Stack" : "Expand Stack") { [weak self] in self?.store.toggleExpanded() })
         }
+        if store.customOrigin != nil {
+            menu.addItem(item("Put Stack Back in Corner") { [weak self] in self?.store.customOrigin = nil })
+        }
         let clear = item(count > 0 ? "Clear Stack (\(count))" : "Stack is empty") { [weak self] in self?.store.clearAll() }
         clear.isEnabled = count > 0
         menu.addItem(clear)

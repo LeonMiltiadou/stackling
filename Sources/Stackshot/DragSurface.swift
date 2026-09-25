@@ -136,3 +136,97 @@ final class DragSurfaceView: NSView, NSDraggingSource {
         if !operation.isEmpty { onDropped(operation) }
     }
 }
+
+/// Moves the whole stack panel while you drag it. Near the corner it snaps into place,
+/// and letting go there (or double-clicking) sends the stack back to the corner.
+struct MoveGrip: NSViewRepresentable {
+    let store: ShotStore
+    var onHover: (Bool) -> Void = { _ in }
+
+    func makeNSView(context: Context) -> MoveGripView {
+        let view = MoveGripView()
+        view.toolTip = "Drag to move the stack. Double-click to put it back in the corner"
+        updateNSView(view, context: context)
+        return view
+    }
+
+    func updateNSView(_ view: MoveGripView, context: Context) {
+        view.store = store
+        view.onHover = onHover
+    }
+}
+
+final class MoveGripView: NSView {
+    var store: ShotStore?
+    var onHover: (Bool) -> Void = { _ in }
+    private var start: (mouse: NSPoint, origin: NSPoint)?
+    private var snapped = false
+    private var tracking: NSTrackingArea?
+
+    private static let snapDistance: CGFloat = 40
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let tracking { removeTrackingArea(tracking) }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect, .cursorUpdate],
+            owner: self
+        )
+        addTrackingArea(area)
+        tracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) { onHover(true) }
+    override func mouseExited(with event: NSEvent) { if start == nil { onHover(false) } }
+    override func cursorUpdate(with event: NSEvent) { (start == nil ? NSCursor.openHand : .closedHand).set() }
+
+    /// Where the panel sits when it's in the corner of the screen under the mouse.
+    private func cornerOrigin() -> NSPoint? {
+        let mouse = NSEvent.mouseLocation
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? window?.screen else { return nil }
+        let visible = screen.visibleFrame
+        return NSPoint(x: visible.minX + Layout.screenMargin, y: visible.minY + Layout.screenMargin)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        if event.clickCount == 2 {
+            start = nil
+            store?.customOrigin = nil
+            return
+        }
+        guard let window else { return }
+        start = (NSEvent.mouseLocation, window.frame.origin)
+        // Already in the corner counts as snapped, so picking it up there doesn't tick.
+        snapped = cornerOrigin().map { hypot(window.frame.minX - $0.x, window.frame.minY - $0.y) < Self.snapDistance } ?? false
+        NSCursor.closedHand.set()
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let start, let window else { return }
+        let now = NSEvent.mouseLocation
+        var origin = NSPoint(x: start.origin.x + now.x - start.mouse.x, y: start.origin.y + now.y - start.mouse.y)
+        let corner = cornerOrigin()
+        let snap = corner.map { hypot(origin.x - $0.x, origin.y - $0.y) < Self.snapDistance } ?? false
+        if snap, let corner { origin = corner }
+        if snap != snapped {
+            snapped = snap
+            if snap { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
+        }
+        // See-through while moving, so you can tell what you're about to cover.
+        window.alphaValue = 0.85
+        window.setFrameOrigin(origin)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        guard start != nil, let window else { return }
+        start = nil
+        window.alphaValue = 1
+        NSCursor.openHand.set()
+        store?.customOrigin = snapped ? nil : window.frame.origin
+        if !bounds.contains(convert(event.locationInWindow, from: nil)) { onHover(false) }
+    }
+}
