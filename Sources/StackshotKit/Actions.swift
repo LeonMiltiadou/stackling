@@ -37,6 +37,29 @@ enum Actions {
     }
 
     /// Makes a GIF of a recording and puts it on the clipboard.
+    /// Asks Claude Code for a descriptive name and renames the file where it is. The card stays put.
+    static func nameWithClaude(_ shot: Shot) {
+        Log.actions.info("name-with-claude file=\(shot.url.lastPathComponent, privacy: .public)")
+        shot.flashWorking("Asking Claude…", timeout: 120)
+        Task {
+            do {
+                let folder = shot.url.deletingLastPathComponent()
+                let suggestions = try await ClaudeCode.suggest(for: [shot.url], in: folder, existingFolders: [], model: AppSettings.claudeModel)
+                guard let entry = GroomPlan.entries(for: [shot.url], suggestions: suggestions).first, !entry.name.isEmpty else {
+                    shot.flashFailed("No name suggested")
+                    return
+                }
+                let dest = CaptureFile.freeURL(for: "\(entry.name).\(shot.url.pathExtension)", in: folder)
+                try Library.move(shot.url, to: dest)
+                ShotStore.shared.relocate([shot.url.standardizedFileURL: dest])
+                shot.flashDone("Renamed")
+            } catch {
+                Log.actions.error("name-with-claude.failed error=\(error.localizedDescription, privacy: .public)")
+                shot.flashFailed("Couldn't name it")
+            }
+        }
+    }
+
     static func copyGIF(_ shot: Shot) {
         note("copy-gif", shot)
         shot.flashWorking("Making GIF…", timeout: gifToastTimeout)

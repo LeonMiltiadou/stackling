@@ -192,6 +192,7 @@ private struct MoreMenu: View {
                 if !folders.isEmpty { Divider() }
                 Button("New Folder…") { Actions.fileIntoNewFolder(shot) }
             }
+            Button("Name with Claude") { Actions.nameWithClaude(shot) }
             Button("Move to…") { Actions.moveTo(shot) }
             Button("Show in Finder") { Actions.reveal(shot) }
             if shot.isVideo {

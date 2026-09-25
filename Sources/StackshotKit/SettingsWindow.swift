@@ -52,6 +52,24 @@ final class SettingsModel: ObservableObject {
         set { AppSettings.copyOnCapture = newValue; changed("copyOnCapture", newValue) }
     }
 
+    var showKeystrokes: Bool {
+        get { AppSettings.showKeystrokes }
+        set {
+            AppSettings.showKeystrokes = newValue
+            // Ask for the permission now, not in the middle of someone's first recording.
+            if newValue { _ = KeystrokeOverlay.hasPermission(prompt: true) }
+            changed("showKeystrokes", newValue)
+        }
+    }
+
+    var claudeModel: String {
+        get { AppSettings.claudeModel }
+        set { AppSettings.claudeModel = newValue; changed("claudeModel", newValue) }
+    }
+
+    /// Where Claude Code was found, for the Library tab. Looked up once per window.
+    lazy var claudePath: String? = ClaudeCode.executable()?.path
+
     var takeOverArea: Bool {
         get { AppSettings.takeOverArea }
         set { AppSettings.takeOverArea = newValue; changed("takeOverArea", newValue) }
@@ -148,6 +166,14 @@ private struct SettingsView: View {
             }
 
             Section {
+                Toggle("Show shortcuts I press in recordings", isOn: Binding(get: { model.showKeystrokes }, set: { model.showKeystrokes = $0 }))
+            } header: {
+                Text("Recording")
+            } footer: {
+                Text("Shortcuts and keys like ⇧⌘P, ⎋ and ↩ appear as key caps at the bottom of area and full-screen recordings. Plain typing is never shown. Needs the Accessibility permission.")
+            }
+
+            Section {
                 Toggle("Open at login", isOn: Binding(get: { model.openAtLogin }, set: { model.openAtLogin = $0 }))
                 Toggle("Show the macOS floating thumbnail too", isOn: Binding(get: { model.nativeThumbnail }, set: { model.nativeThumbnail = $0 }))
             } footer: {
@@ -200,6 +226,28 @@ private struct SettingsView: View {
                 Text("Tidying")
             } footer: {
                 Text("Only screenshots and recordings at the top of the save folder are tidied, never ones still on the stack or in your own folders.")
+            }
+
+            Section {
+                LabeledContent("Claude Code") {
+                    if let path = model.claudePath {
+                        Label(displayPath(URL(fileURLWithPath: path)), systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Link("Not installed. Get it", destination: URL(string: "https://claude.com/claude-code")!)
+                    }
+                }
+                Picker("Model", selection: Binding(get: { model.claudeModel }, set: { model.claudeModel = $0 })) {
+                    Text("Haiku (fastest)").tag("haiku")
+                    Text("Sonnet (best names)").tag("sonnet")
+                    Text("Opus").tag("opus")
+                }
+                Button("Tidy with Claude…") { GroomWindowController.show() }
+                    .disabled(model.claudePath == nil)
+            } header: {
+                Text("Claude")
+            } footer: {
+                Text("Claude looks at your loose screenshots and suggests a name and a folder for each. You review everything before anything moves. Card menus also have Name with Claude.")
             }
         }
         .formStyle(.grouped)

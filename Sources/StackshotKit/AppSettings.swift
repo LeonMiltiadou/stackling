@@ -2,6 +2,7 @@ import Foundation
 
 /// Every UserDefaults key Stackshot uses, in one place.
 enum DefaultsKey {
+    static let claudeModel = "claudeModel"
     static let showKeystrokes = "showKeystrokes"
     static let shrinkDelay = "fadeDelay"            // stored under its old name so existing choices carry over
     static let copyOnCapture = "copyOnCapture"
@@ -67,6 +68,12 @@ enum AppSettings {
     static var keepNativeThumbnail: Bool {
         get { d.bool(forKey: DefaultsKey.keepNativeThumbnail) }
         set { d.set(newValue, forKey: DefaultsKey.keepNativeThumbnail) }
+    }
+
+    /// Which Claude model Tidy with Claude uses: "haiku", "sonnet" or "opus".
+    static var claudeModel: String {
+        get { d.string(forKey: DefaultsKey.claudeModel) ?? "sonnet" }
+        set { d.set(newValue, forKey: DefaultsKey.claudeModel) }
     }
 
     /// Show the shortcuts you press, as key caps, in area and full-screen recordings.

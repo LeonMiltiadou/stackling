@@ -30,7 +30,8 @@ enum Library {
     // MARK: Folders
 
     /// Folders you've filed shots into, most recently used first.
-    static func folders() -> [URL] {
+    static func folders(in libraryRoot: URL? = nil) -> [URL] {
+        let root = libraryRoot ?? Library.root
         guard FileManager.default.fileExists(atPath: root.path) else { return [] }
         let keys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey]
         let items: [URL]

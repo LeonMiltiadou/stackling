@@ -89,6 +89,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(recentlyDismissedItem())
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(title: "Open Library") { NSWorkspace.shared.open(ScreenshotPrefs.screenshotFolder) })
+        menu.addItem(ClosureMenuItem(title: "Tidy with Claude…") { GroomWindowController.show() })
         menu.addItem(MainMenu.settingsItem())
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(title: "How It Works…") { WelcomeAlert.show() })
