@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var watcher: ScreenshotWatcher!
     private var statusItem: NSStatusItem!
     private var bag = Set<AnyCancellable>()
+    private var tidyTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMainMenu()
@@ -37,7 +38,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Prefs.setNativeThumbnail(false)
         }
 
+        Library.adoptIfOnDesktop()
+        StackMemory.restore(into: store)
+        Publishers.CombineLatest(store.$shots, store.$recent)
+            .debounce(for: .milliseconds(300), scheduler: RunLoop.main)
+            .sink { [weak self] _, _ in
+                guard let self else { return }
+                StackMemory.save(self.store)
+            }
+            .store(in: &bag)
         watcher.start()
+
+        // Tidy once shortly after launch, then every hour.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) { [weak self] in
+            guard let self else { return }
+            Library.tidy(store: self.store)
+        }
+        tidyTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                Library.tidy(store: self.store)
+            }
+        }
+
+        NotificationCenter.default.publisher(for: .stackshotSettingsChanged)
+            .sink { [weak self] _ in
+                self?.applyShortcuts()
+                self?.panel.poke()
+                self?.watcher.checkLocation()
+            }
+            .store(in: &bag)
 
         CaptureController.shared.excludedWindowNumbers = { [weak self] in
             [self?.panel.windowNumber].compactMap { $0 }
@@ -118,6 +148,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let appMenu = NSMenu()
         appMenu.addItem(withTitle: "About Stackshot", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
+        appMenu.addItem(item("Settings…") { SettingsWindowController.show() })
+        appMenu.items.last?.keyEquivalent = ","
+        appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide Stackshot", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(withTitle: "Quit Stackshot", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         appItem.submenu = appMenu
@@ -190,58 +223,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(recentItem)
 
         menu.addItem(.separator())
-        menu.addItem(saveLocationItem())
-        menu.addItem(item("Open Screenshots Folder") { NSWorkspace.shared.open(Prefs.screenshotFolder) })
-
-        let native = item("Show macOS Floating Thumbnail Too") {
-            let on = !Prefs.nativeThumbnailEnabled
-            Prefs.setNativeThumbnail(on)
-            UserDefaults.standard.set(on, forKey: "leaveNativeThumbnail")
-        }
-        native.state = Prefs.nativeThumbnailEnabled ? .on : .off
-        native.toolTip = "Leave this off. With it on, macOS waits for its own thumbnail to vanish before saving, so screenshots show up late."
-        menu.addItem(native)
-
-        let area = item("Use Stackshot for ⇧⌘4") { [weak self] in
-            guard let self else { return }
-            UserDefaults.standard.set(!self.takeOverArea, forKey: "takeOverArea")
-            self.applyShortcuts()
-        }
-        area.state = takeOverArea ? .on : .off
-        area.toolTip = "On: ⇧⌘4 freezes the screen and shows the loupe. Off: ⇧⌘4 is the Mac's own capture (still lands on the stack)."
-        menu.addItem(area)
-
-        menu.addItem(fadeItem())
-
-        let login = item("Open at Login") {
-            let service = SMAppService.mainApp
-            if service.status == .enabled { try? service.unregister() } else { try? service.register() }
-        }
-        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
-        menu.addItem(login)
-
+        menu.addItem(item("Open Library") { NSWorkspace.shared.open(Prefs.screenshotFolder) })
+        let settings = item("Settings…") { SettingsWindowController.show() }
+        settings.keyEquivalent = ","
+        menu.addItem(settings)
         menu.addItem(.separator())
         menu.addItem(item("How It Works…") { [weak self] in self?.showWelcome() })
         menu.addItem(item("Quit Stackshot") { NSApp.terminate(nil) })
-    }
-
-    private func fadeItem() -> NSMenuItem {
-        let parent = NSMenuItem(title: "Shrink When Idle", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        for (title, seconds) in [("After 1 second", 1.0), ("After 2 seconds", 2), ("After 5 seconds", 5), ("After 10 seconds", 10), ("Never", 0)] {
-            let entry = item(title) { [weak self] in
-                Settings.fadeDelay = seconds
-                self?.panel.poke()
-            }
-            entry.state = Settings.fadeDelay == seconds ? .on : .off
-            sub.addItem(entry)
-        }
-        sub.addItem(.separator())
-        let note = NSMenuItem(title: "Click the little box to open the stack again", action: nil, keyEquivalent: "")
-        note.isEnabled = false
-        sub.addItem(note)
-        parent.submenu = sub
-        return parent
     }
 
     private func addCaptureItems(to menu: NSMenu) {
@@ -257,49 +245,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             menu.addItem(item("Record Screen…", hint: "⇧⌘7") { CaptureController.shared.start(.area, for: .recording) })
         }
         menu.addItem(item("macOS Screenshot Toolbar…", hint: "⇧⌘5") { Capture.toolbar.run() })
-    }
-
-    private func saveLocationItem() -> NSMenuItem {
-        let parent = NSMenuItem(title: "Save Screenshots To", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        let current = Prefs.screenshotFolder.standardizedFileURL
-        let options: [(String, URL)] = [
-            ("Desktop", home.appendingPathComponent("Desktop")),
-            ("Pictures › Screenshots", home.appendingPathComponent("Pictures/Screenshots")),
-            ("Downloads", home.appendingPathComponent("Downloads")),
-        ]
-        var matched = false
-        for (title, url) in options {
-            let entry = item(title) { [weak self] in
-                Prefs.setScreenshotFolder(url)
-                self?.watcher.checkLocation()
-            }
-            if url.standardizedFileURL == current { entry.state = .on; matched = true }
-            sub.addItem(entry)
-        }
-        if !matched {
-            let custom = NSMenuItem(title: current.lastPathComponent, action: nil, keyEquivalent: "")
-            custom.state = .on
-            custom.isEnabled = false
-            sub.addItem(custom)
-        }
-        sub.addItem(.separator())
-        sub.addItem(item("Choose Folder…") { [weak self] in
-            NSApp.activate()
-            let panel = NSOpenPanel()
-            panel.canChooseDirectories = true
-            panel.canChooseFiles = false
-            panel.canCreateDirectories = true
-            panel.prompt = "Use Folder"
-            panel.directoryURL = current
-            if panel.runModal() == .OK, let url = panel.url {
-                Prefs.setScreenshotFolder(url)
-                self?.watcher.checkLocation()
-            }
-        })
-        parent.submenu = sub
-        return parent
     }
 
     private func item(_ title: String, hint: String? = nil, _ action: @escaping () -> Void) -> NSMenuItem {

@@ -102,6 +102,23 @@ enum Capture {
 enum Settings {
     private static var d: UserDefaults { .standard }
 
+    /// Also put every new capture on the clipboard.
+    static var copyOnCapture: Bool {
+        get { d.bool(forKey: "copyOnCapture") }
+        set { d.set(newValue, forKey: "copyOnCapture") }
+    }
+
+    /// Days before loose captures in the inbox get tidied away. 0 means never.
+    static var tidyAfterDays: Int {
+        get { d.object(forKey: "tidyAfterDays") as? Int ?? 7 }
+        set { d.set(newValue, forKey: "tidyAfterDays") }
+    }
+
+    static var tidyAction: Library.TidyAction {
+        get { Library.TidyAction(rawValue: d.string(forKey: "tidyAction") ?? "") ?? .archive }
+        set { d.set(newValue.rawValue, forKey: "tidyAction") }
+    }
+
     /// Seconds of quiet before the stack shrinks into a little box. 0 means never.
     static var fadeDelay: Double {
         get { d.object(forKey: "fadeDelay") as? Double ?? 2 }

@@ -112,7 +112,7 @@ final class ScreenshotWatcher {
                 log.notice("New screenshot \(item.url.lastPathComponent, privacy: .public)")
                 // Give the writer a beat to finish before we thumbnail it.
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    self.store.add(item.url, created: item.created)
+                    self.store.addCapture(item.url, created: item.created)
                 }
             } else if age > 5 {
                 // Not a screenshot, stop looking at it.

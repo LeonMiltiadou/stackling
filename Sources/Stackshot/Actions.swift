@@ -7,9 +7,14 @@ enum Actions {
     static var store: ShotStore { .shared }
 
     static func copy(_ shot: Shot) {
+        writeToPasteboard(shot)
+        store.finish(shot, message: "Copied")
+    }
+
+    /// Image data (with edits) for apps that paste pictures, plus the file for apps that take files.
+    static func writeToPasteboard(_ shot: Shot) {
         if shot.isGIF {
             writeGIF(shot.url)
-            store.finish(shot, message: "Copied")
             return
         }
         let pb = NSPasteboard.general
@@ -26,7 +31,17 @@ enum Actions {
         }
         item.setString(file.absoluteString, forType: .fileURL)
         pb.writeObjects([item])
-        store.finish(shot, message: "Copied")
+    }
+
+    /// Files a shot into a library folder and takes it off the stack.
+    static func file(_ shot: Shot, into folder: URL) {
+        guard Library.file(shot, into: folder) else { return }
+        store.finish(shot, message: "Filed in \(folder.lastPathComponent)")
+    }
+
+    static func fileIntoNewFolder(_ shot: Shot) {
+        guard let folder = Library.askForNewFolder() else { return }
+        file(shot, into: folder)
     }
 
     /// Makes a GIF of a recording and puts it on the clipboard.

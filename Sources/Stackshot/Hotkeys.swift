@@ -32,22 +32,103 @@ final class HotKeys {
 
     /// ⇧⌘ + key.
     func register(_ key: Key, _ handler: @escaping () -> Void) {
+        register(id: key.rawValue, keyCode: key.rawValue, modifiers: UInt32(cmdKey | shiftKey), handler)
+    }
+
+    func unregister(_ key: Key) { unregister(id: key.rawValue) }
+
+    /// Any key and modifiers, under an id of your choosing (keep them clear of the key codes above).
+    func register(id: UInt32, keyCode: UInt32, modifiers: UInt32, _ handler: @escaping () -> Void) {
         install()
-        unregister(key)
+        unregister(id: id)
         var ref: EventHotKeyRef?
-        let id = EventHotKeyID(signature: OSType(0x5354_4B53), id: key.rawValue) // 'STKS'
-        let status = RegisterEventHotKey(key.rawValue, UInt32(cmdKey | shiftKey), id, GetApplicationEventTarget(), 0, &ref)
+        let hotKeyID = EventHotKeyID(signature: OSType(0x5354_4B53), id: id) // 'STKS'
+        let status = RegisterEventHotKey(keyCode, modifiers, hotKeyID, GetApplicationEventTarget(), 0, &ref)
         if status == noErr, let ref {
-            refs[key.rawValue] = ref
-            handlers[key.rawValue] = handler
+            refs[id] = ref
+            handlers[id] = handler
         } else {
-            log.error("Couldn't register ⇧⌘ hot key \(key.rawValue): \(status)")
+            log.error("Couldn't register hot key \(keyCode) (id \(id)): \(status)")
         }
     }
 
-    func unregister(_ key: Key) {
-        if let ref = refs.removeValue(forKey: key.rawValue) { UnregisterEventHotKey(ref) }
-        handlers[key.rawValue] = nil
+    func unregister(id: UInt32) {
+        if let ref = refs.removeValue(forKey: id) { UnregisterEventHotKey(ref) }
+        handlers[id] = nil
+    }
+}
+
+/// While your mouse is on a card, a few keys act on that card, no click needed.
+/// They're only claimed while you're pointing at a card and have moved the mouse in the last
+/// few seconds, so a mouse parked over the stack never eats what you're typing somewhere else.
+@MainActor
+enum CardKeys {
+    private struct Binding {
+        let id: UInt32, keyCode: UInt32, modifiers: Int
+        let applies: (Shot) -> Bool
+        let action: (Shot) -> Void
+    }
+
+    private static let bindings: [Binding] = [
+        Binding(id: 200, keyCode: 8, modifiers: cmdKey, applies: { _ in true }, action: Actions.copy),              // ⌘C
+        Binding(id: 201, keyCode: 51, modifiers: cmdKey, applies: { _ in true }, action: { ShotStore.shared.trash($0) }), // ⌘⌫
+        Binding(id: 202, keyCode: 53, modifiers: 0, applies: { _ in true }, action: { ShotStore.shared.dismiss($0) }),    // Esc
+        Binding(id: 203, keyCode: 49, modifiers: 0, applies: { _ in true }, action: Actions.edit),                // Space
+        Binding(id: 204, keyCode: 14, modifiers: 0, applies: { _ in true }, action: Actions.edit),                // E
+        Binding(id: 205, keyCode: 17, modifiers: 0, applies: \.isStill, action: Actions.copyText),                // T
+        Binding(id: 206, keyCode: 35, modifiers: 0, applies: \.isStill, action: Actions.pin),                     // P
+        Binding(id: 207, keyCode: 5, modifiers: 0, applies: \.isVideo, action: Actions.copyGIF),                  // G
+    ]
+
+    private static weak var hovered: Shot?
+    private static var active = false
+    private static var lastMouse = NSPoint.zero
+    private static var lastMove = Date.distantPast
+    private static var timer: Timer?
+    private static let quietAfter: TimeInterval = 3
+
+    static func hover(_ shot: Shot) {
+        hovered = shot
+        lastMove = Date()
+        lastMouse = NSEvent.mouseLocation
+        update()
+        guard timer == nil else { return }
+        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { _ in
+            MainActor.assumeIsolated { tick() }
+        }
+    }
+
+    static func leave(_ shot: Shot) {
+        guard hovered === shot else { return }
+        hovered = nil
+        timer?.invalidate()
+        timer = nil
+        update()
+    }
+
+    private static func tick() {
+        let mouse = NSEvent.mouseLocation
+        if mouse != lastMouse {
+            lastMouse = mouse
+            lastMove = Date()
+        }
+        update()
+    }
+
+    private static func update() {
+        let want = hovered != nil && Date().timeIntervalSince(lastMove) < quietAfter
+        guard want != active else { return }
+        active = want
+        for b in bindings {
+            if want {
+                HotKeys.shared.register(id: b.id, keyCode: b.keyCode, modifiers: UInt32(b.modifiers)) {
+                    guard let shot = hovered, b.applies(shot) else { return }
+                    b.action(shot)
+                }
+            } else {
+                HotKeys.shared.unregister(id: b.id)
+            }
+        }
     }
 }
 

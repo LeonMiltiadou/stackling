@@ -289,7 +289,10 @@ struct ShotCard: View {
                 onDropped: { op in
                     if op.contains(.delete) { store.trash(shot) } else { store.dismiss(shot) }
                 },
-                onHover: { h in withAnimation(.easeOut(duration: 0.14)) { hovering = h } }
+                onHover: { h in
+                    withAnimation(.easeOut(duration: 0.14)) { hovering = h }
+                    if h { CardKeys.hover(shot) } else { CardKeys.leave(shot) }
+                }
             )
 
             if hovering {
@@ -386,36 +389,36 @@ private struct CardControls: View {
 
             VStack {
                 HStack {
-                    RoundIcon(symbol: "xmark", help: "Dismiss (file stays on disk)") { store.dismiss(shot) }
+                    RoundIcon(symbol: "xmark", help: "Dismiss (Esc). The file stays on disk") { store.dismiss(shot) }
                     Spacer()
                     MoveControls(store: store)
                     Spacer()
                     if shot.isStill {
-                        RoundIcon(symbol: "pin", help: "Pin to screen: floats above everything") { Actions.pin(shot) }
+                        RoundIcon(symbol: "pin", help: "Pin to screen: floats above everything (P)") { Actions.pin(shot) }
                     }
-                    RoundIcon(symbol: "trash", help: "Move to Trash") { store.trash(shot) }
+                    RoundIcon(symbol: "trash", help: "Move to Trash (⌘⌫)") { store.trash(shot) }
                 }
                 Spacer()
                 HStack(spacing: 6) {
-                    ActionPill(symbol: "doc.on.doc", title: "Copy", help: "Copy \(shot.isVideo ? "the video" : "image"). Hold ⌥ to keep it in the stack") {
+                    ActionPill(symbol: "doc.on.doc", title: "Copy", help: "Copy \(shot.isVideo ? "the video" : "image") (⌘C). Hold ⌥ to keep it in the stack") {
                         Actions.copy(shot)
                     }
                     if shot.isStill {
-                        ActionPill(symbol: "pencil.tip.crop.circle", title: "Edit", help: "Annotate, redact, beautify") {
+                        ActionPill(symbol: "pencil.tip.crop.circle", title: "Edit", help: "Annotate, redact, beautify (E or Space)") {
                             Actions.edit(shot)
                         }
                     } else {
-                        ActionPill(symbol: "play.fill", title: "Preview", help: shot.isVideo ? "Watch it, see the GIF version, trim the ends" : "Watch the GIF") {
+                        ActionPill(symbol: "play.fill", title: "Preview", help: shot.isVideo ? "Watch it, see the GIF version, trim the ends (Space)" : "Watch the GIF (Space)") {
                             Actions.edit(shot)
                         }
                     }
                     if shot.isVideo {
-                        ActionPill(symbol: "photo.stack", title: "GIF", help: "Copy as a looping GIF, for Slack or GitHub") {
+                        ActionPill(symbol: "photo.stack", title: "GIF", help: "Copy as a looping GIF, for Slack or GitHub (G)") {
                             Actions.copyGIF(shot)
                         }
                     }
                     if shot.isStill {
-                        ActionPill(symbol: "text.viewfinder", title: "Text", help: "Copy the text in this screenshot") {
+                        ActionPill(symbol: "text.viewfinder", title: "Text", help: "Copy the text in this screenshot (T)") {
                             Actions.copyText(shot)
                         }
                     }
@@ -434,6 +437,13 @@ private struct MoreMenu: View {
 
     var body: some View {
         Menu {
+            Menu("File Into") {
+                ForEach(Library.folders(), id: \.self) { folder in
+                    Button(folder.lastPathComponent) { Actions.file(shot, into: folder) }
+                }
+                if !Library.folders().isEmpty { Divider() }
+                Button("New Folder…") { Actions.fileIntoNewFolder(shot) }
+            }
             Button("Move to…") { Actions.moveTo(shot) }
             Button("Show in Finder") { Actions.reveal(shot) }
             if shot.isVideo {
