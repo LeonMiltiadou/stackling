@@ -40,6 +40,16 @@ enum CaptureFile {
     static let tagName = "com.apple.metadata:kMDItemIsScreenCapture"
     static let namePrefixes = ["Screenshot", "Screen Recording", "Screen Shot", "Pasted Image"]
 
+    /// True once the file can be read in full: a picture decodes completely. macOS moves finished recordings
+    /// into place in one step, so a video that's there and readable is done.
+    static func isComplete(_ url: URL) -> Bool {
+        if ["mov", "mp4", "m4v"].contains(url.pathExtension.lowercased()) {
+            return FileManager.default.isReadableFile(atPath: url.path)
+        }
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return false }
+        return CGImageSourceGetStatus(source) == .statusComplete && CGImageSourceGetCount(source) > 0
+    }
+
     /// A screenshot or screen recording, by macOS's tag or, failing that, its name.
     static func isCapture(_ url: URL) -> Bool {
         if getxattr(url.path, tagName, nil, 0, 0, 0) >= 0 { return true }

@@ -63,7 +63,9 @@ final class ScreenshotWatcher {
     /// How long to wait for macOS's screenshot tag before deciding a file isn't a capture.
     private static let tagGrace: TimeInterval = 5
     /// Gives the writer a beat to finish before we thumbnail the file.
-    private static let settleDelay: TimeInterval = 0.15
+    /// How long to wait before checking again on a file that's still being written, and how many times.
+    private static let readyRetry: TimeInterval = 0.04
+    private static let readyAttempts = 8
 
     init(store: ShotStore) {
         self.store = store
@@ -130,9 +132,7 @@ final class ScreenshotWatcher {
             if CaptureFile.isCapture(item.url) {
                 known[item.url] = item.modified
                 Log.library.notice("capture.new file=\(item.url.lastPathComponent, privacy: .public)")
-                DispatchQueue.main.asyncAfter(deadline: .now() + Self.settleDelay) {
-                    self.store.addCapture(item.url, created: item.created)
-                }
+                addWhenReady(item.url, created: item.created)
             } else if age > Self.tagGrace {
                 // Not a screenshot, stop looking at it.
                 known[item.url] = item.modified
@@ -141,5 +141,18 @@ final class ScreenshotWatcher {
             // Otherwise leave it unknown: the screenshot metadata may land a moment later.
         }
         store.pruneMissing()
+    }
+
+    /// Adds a capture as soon as it reads back complete. macOS writes screenshots in one go, so that's
+    /// usually straight away; a file still being written gets a few short retries.
+    private func addWhenReady(_ url: URL, created: Date, attempt: Int = 0) {
+        guard !CaptureFile.isComplete(url), attempt < Self.readyAttempts else {
+            if attempt > 0 { Log.library.debug("capture.ready file=\(url.lastPathComponent, privacy: .public) retries=\(attempt)") }
+            store.addCapture(url, created: created)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.readyRetry) { [weak self] in
+            self?.addWhenReady(url, created: created, attempt: attempt + 1)
+        }
     }
 }

@@ -17,6 +17,23 @@ swift scripts/windows.swift     # every Stackling window: frame, on screen, alph
 A change is done when it builds with no new warnings, `swift test` passes, and you have either a
 test covering the logic or log output / an off-screen render showing it working.
 
+## Performance
+
+`scripts/bench.sh` times the hot paths on a made-up 2,000-shot library (nothing appears on screen).
+Baselines on an M-series MacBook Pro, September 2026:
+
+| Path | Time | Notes |
+| --- | --- | --- |
+| Library scan, 2,000 files | ~70 ms | off the main thread |
+| Search, one query / 8 keystrokes | ~2 ms / ~13 ms | per-shot search strings are cached in `SearchIndex` |
+| Read text from a shot (Vision) | ~160–200 ms | background priority, 3 at a time (24% faster than one at a time; Vision mostly serialises) |
+| ⇧⌘4 freeze, cached displays / first | ~57 ms / ~165 ms | `ScreenGrabber.warmUp()` at launch moves the slow one out of the way |
+| New screenshot → on the stack | ~3 ms after the file is written | `ScreenshotWatcher.addWhenReady` checks the file is complete |
+| Launch → ready | ~280 ms | |
+| Idle, empty stack | 0 wake-ups | the stack's poll timer only runs while it's on screen |
+
+If a change touches one of these paths, run the bench before and after and say what moved.
+
 ## Layout
 
 - `Sources/Stackling/main.swift` is one line. Everything else is `Sources/StacklingKit`, so tests can

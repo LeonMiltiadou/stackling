@@ -48,7 +48,7 @@ import Testing
         #expect(SearchIndex.shared.matches(shot, query: "   "))
     }
 
-    @Test func readsWordsFromARealImage() throws {
+    @Test func readsWordsFromARealImage() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -59,7 +59,7 @@ import Testing
             return true
         }
         try NSBitmapImageRep(data: image.tiffRepresentation!)!.representation(using: .png, properties: [:])!.write(to: url)
-        let text = SearchIndex.readText(at: url).lowercased()
+        let text = await SearchIndex.readText(at: url).lowercased()
         #expect(text.contains("payment failed"))
         #expect(text.contains("declined"))
     }

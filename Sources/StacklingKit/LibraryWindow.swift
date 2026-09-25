@@ -95,7 +95,7 @@ struct LibraryView: View {
     private var shown: [LibraryIndex.Item] {
         // Searching looks everywhere, not just the section you're in.
         let pool = query.isEmpty ? index.items.filter { section.contains($0) } : index.items
-        return pool.filter { search.matches($0, query: query) }
+        return search.filter(pool, query: query)
     }
 
     private var selectedItems: [LibraryIndex.Item] { index.items.filter { selection.contains($0.url) } }
@@ -111,7 +111,9 @@ struct LibraryView: View {
             }
         }
         .onChange(of: section) { selection.removeAll() }
-        .dropDestination(for: URL.self) { urls, _ in Importer.add(urls, from: "library-drop") > 0 }
+        .dropDestination(for: URL.self) { urls, _ in
+            return Importer.add(urls, from: "library-drop") > 0
+        }
     }
 
     // MARK: Sidebar
@@ -177,8 +179,13 @@ struct LibraryView: View {
 
     // MARK: Grid
 
-    @ViewBuilder
     private var content: some View {
+        grid(of: shown)
+    }
+
+    /// Takes the filtered shots as a value, so filtering happens once per update rather than for every use.
+    @ViewBuilder
+    private func grid(of shown: [LibraryIndex.Item]) -> some View {
         if index.items.isEmpty && !index.isScanning {
             EmptyLibrary()
         } else if shown.isEmpty {
@@ -196,7 +203,7 @@ struct LibraryView: View {
                     ForEach(shown) { item in
                         LibraryTile(item: item, selected: selection.contains(item.url))
                             .onTapGesture(count: 2) { LibraryActions.open(item) }
-                            .onTapGesture { select(item) }
+                            .onTapGesture { select(item, in: shown) }
                             .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() }
                             .contextMenu { LibraryItemMenu(item: item) }
                     }
@@ -209,7 +216,7 @@ struct LibraryView: View {
     }
 
     /// Click selects one; ⌘-click adds or removes; ⇧-click extends the selection.
-    private func select(_ item: LibraryIndex.Item) {
+    private func select(_ item: LibraryIndex.Item, in shown: [LibraryIndex.Item]) {
         let flags = NSEvent.modifierFlags
         if flags.contains(.command) {
             if selection.contains(item.url) { selection.remove(item.url) } else { selection.insert(item.url) }
@@ -263,7 +270,11 @@ private struct LibraryTile: View {
 /// Small thumbnails for the library grid, made by Quick Look and kept in memory.
 @MainActor
 enum Thumbnails {
-    private static let cache = NSCache<NSURL, NSImage>()
+    private static let cache: NSCache<NSURL, NSImage> = {
+        let cache = NSCache<NSURL, NSImage>()
+        cache.countLimit = 800   // about a screenful many times over; older ones are remade on demand
+        return cache
+    }()
     private static let size = CGSize(width: 260, height: 170)
 
     static func image(for url: URL) async -> NSImage? {

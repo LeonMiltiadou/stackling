@@ -30,23 +30,60 @@ enum ScreenGrabber {
     /// Windows smaller than this on either side aren't worth offering for a window capture.
     static let minimumWindowSide: CGFloat = 40
 
-    /// A picture of every display, leaving out the windows numbered in `windowNumbers` (the stack itself).
+    /// Displays from the last look at what's on screen. Listing shareable content takes about a third of a
+    /// freeze, and displays rarely change, so it's reused until a screen appears that isn't in it.
+    private static var cachedDisplays: [SCDisplay] = []
+
+    /// Looks up the displays ahead of the first capture, so the first ⇧⌘4 after launch is as quick as the rest.
+    static func warmUp() async {
+        guard CGPreflightScreenCaptureAccess() else { return }
+        cachedDisplays = (try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true).displays) ?? []
+        Log.capture.debug("freeze.warm displays=\(cachedDisplays.count)")
+    }
+
+    /// A picture of every display, leaving out the windows numbered in `windowNumbers`. All displays are
+    /// captured at once.
     static func freezeScreens(excluding windowNumbers: [Int]) async throws -> [FrozenScreen] {
-        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-        let ownNumbers = Set(windowNumbers.map { CGWindowID($0) })
-        let excluded = content.windows.filter { ownNumbers.contains($0.windowID) }
-        var result: [FrozenScreen] = []
-        for screen in NSScreen.screens {
-            guard let id = screen.displayID, let display = content.displays.first(where: { $0.displayID == id }) else {
-                Log.capture.notice("freeze.display-missing screen=\(screen.displayID ?? 0)")
-                continue
-            }
-            let filter = SCContentFilter(display: display, excludingWindows: excluded)
-            let config = imageConfiguration(points: screen.frame.size, scale: screen.backingScaleFactor)
-            let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
-            result.append(FrozenScreen(screen: screen, image: image))
+        do {
+            return try await freeze(excluding: windowNumbers)
+        } catch where !cachedDisplays.isEmpty {
+            // A display from the cache may have gone stale (a monitor reconnected, say): look again and retry once.
+            Log.capture.notice("freeze.retry reason=\(error.localizedDescription, privacy: .public)")
+            cachedDisplays = []
+            return try await freeze(excluding: windowNumbers)
         }
-        Log.capture.debug("freeze.done screens=\(result.count) excluded=\(excluded.count)")
+    }
+
+    private static func freeze(excluding windowNumbers: [Int]) async throws -> [FrozenScreen] {
+        let started = CFAbsoluteTimeGetCurrent()
+        let screens = NSScreen.screens
+        var excluded: [SCWindow] = []
+        let cacheCovers = screens.allSatisfy { s in cachedDisplays.contains { $0.displayID == s.displayID } }
+        if !windowNumbers.isEmpty || !cacheCovers {
+            let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+            cachedDisplays = content.displays
+            let own = Set(windowNumbers.map { CGWindowID($0) })
+            excluded = content.windows.filter { own.contains($0.windowID) }
+        }
+        let jobs: [(Int, NSScreen, SCDisplay)] = screens.enumerated().compactMap { i, screen in
+            guard let display = cachedDisplays.first(where: { $0.displayID == screen.displayID }) else {
+                Log.capture.notice("freeze.display-missing screen=\(screen.displayID ?? 0)")
+                return nil
+            }
+            return (i, screen, display)
+        }
+        let result = try await withThrowingTaskGroup(of: (Int, FrozenScreen).self) { group in
+            for (i, screen, display) in jobs {
+                let filter = SCContentFilter(display: display, excludingWindows: excluded)
+                let config = imageConfiguration(points: screen.frame.size, scale: screen.backingScaleFactor)
+                group.addTask { (i, FrozenScreen(screen: screen, image: try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config))) }
+            }
+            var frozen: [(Int, FrozenScreen)] = []
+            for try await item in group { frozen.append(item) }
+            return frozen.sorted { $0.0 < $1.0 }.map(\.1)
+        }
+        let ms = Int((CFAbsoluteTimeGetCurrent() - started) * 1000)
+        Log.capture.debug("freeze.done screens=\(result.count) excluded=\(excluded.count) ms=\(ms) cached=\(windowNumbers.isEmpty && cacheCovers)")
         return result
     }
 

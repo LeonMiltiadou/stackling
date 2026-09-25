@@ -84,15 +84,30 @@ final class StackPanelController {
             .sink { [weak self] _ in self?.rescueIfStranded() }
             .store(in: &bag)
 
-        // Polling rather than tracking areas: it keeps working while the panel is tucked away
-        // and ignoring the mouse. Scheduled in the default run loop mode, so it pauses while
-        // a menu is open or a card is being dragged.
-        pollTimer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.tick() }
+    }
+
+    /// Polling rather than tracking areas: it keeps working while the panel is tucked away and ignoring
+    /// the mouse. It only runs while the stack is on screen, so an empty stack costs nothing. Scheduled in
+    /// the default run loop mode, so it pauses while a menu is open or a card is being dragged.
+    private func setPolling(_ on: Bool) {
+        guard on != (pollTimer != nil) else { return }
+        if on {
+            pollTimer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
+                MainActor.assumeIsolated { self?.tick() }
+            }
+            pollTimer?.tolerance = Self.pollInterval / 3
+        } else {
+            pollTimer?.invalidate()
+            pollTimer = nil
         }
+        Log.stack.debug("poll running=\(on)")
     }
 
     var windowNumber: Int { panel.windowNumber }
+
+    /// The stack's window, if screenshots would otherwise include it. Normally it hides itself from every
+    /// capture, so there's nothing to leave out (and ⇧⌘4 can skip looking up what's on screen).
+    var windowNumberToExclude: Int? { panel.sharingType == .none ? nil : panel.windowNumber }
 
     /// Something happened (new shot, action, settings change): restart the idle clock.
     func noteActivity() {
@@ -168,6 +183,7 @@ final class StackPanelController {
         Log.stack.debug("layout count=\(count) expanded=\(expanded) minimized=\(minimized) screen=\(screen.displayID ?? 0) frame=\(NSStringFromRect(target), privacy: .public)")
         applyFrame(target)
         panel.orderFrontRegardless()
+        setPolling(true)
         rescueIfStranded()
     }
 
@@ -182,6 +198,7 @@ final class StackPanelController {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.panel.orderOut(nil)
+            self.setPolling(false)
             self.screen = nil
             if self.store.customOrigin != nil { self.store.customOrigin = nil }
             Log.stack.info("hidden reason=empty")

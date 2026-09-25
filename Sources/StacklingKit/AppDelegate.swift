@@ -38,9 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         scheduleTidying()
         // Start the library a little after launch, so the words in your shots are ready to search when you look.
         DispatchQueue.main.asyncAfter(deadline: .now() + 20) { LibraryIndex.shared.start() }
+        Task { await ScreenGrabber.warmUp() }
         observeSettings()
         CaptureController.shared.excludedWindowNumbers = { [weak self] in
-            [self?.panel.windowNumber].compactMap { $0 }
+            [self?.panel.windowNumberToExclude].compactMap { $0 }
         }
         applyShortcuts()
         showWelcomeOnce()
