@@ -93,6 +93,9 @@ struct Annotation: Codable, Identifiable, Equatable {
     var width: CGFloat
     var text: String = ""
     var number: Int = 0
+    /// A redaction drawn as a solid block rather than pixelated. Used for secrets, since pixelated
+    /// text can sometimes be reconstructed. Optional so older saved edits still load.
+    var solid: Bool?
 
     var start: CGPoint { points.first ?? .zero }
     var end: CGPoint { points.last ?? .zero }

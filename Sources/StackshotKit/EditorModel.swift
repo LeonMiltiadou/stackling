@@ -120,6 +120,29 @@ final class EditorModel: ObservableObject {
         canRedo = !redoStack.isEmpty
     }
 
+    // Secrets
+
+    /// Finds keys, tokens, passwords and the like, and covers each with a solid block (one undo step).
+    /// Returns how many it covered.
+    func redactSecrets() async -> Int {
+        let found = await SecretFinder.find(in: base)
+        let fresh = found.filter { secret in
+            !markup.items.contains { $0.tool == .redact && $0.rect.contains(secret.rect.insetBy(dx: 1, dy: 1)) }
+        }
+        let kinds = Dictionary(grouping: fresh, by: \.kind).map { "\($0.key.rawValue)=\($0.value.count)" }.sorted().joined(separator: " ")
+        Log.editor.info("secrets.found total=\(found.count) new=\(fresh.count) \(kinds, privacy: .public)")
+        guard !fresh.isEmpty else { return 0 }
+        checkpoint()
+        for secret in fresh {
+            markup.items.append(Annotation(
+                tool: .redact,
+                points: [secret.rect.origin, CGPoint(x: secret.rect.maxX, y: secret.rect.maxY)],
+                color: RGBA.redactFill, width: strokeWidth, solid: true
+            ))
+        }
+        return fresh.count
+    }
+
     // Items
 
     func index(of id: UUID?) -> Int? {

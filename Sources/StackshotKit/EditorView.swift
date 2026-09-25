@@ -36,6 +36,7 @@ struct EditorView: View {
             SizeGroup(model: model)
             Divider().frame(height: 22)
             BeautifyButton(model: model, compact: compact)
+            SecretsButton(model: model, compact: compact)
 
             Spacer(minLength: 8)
 
@@ -166,6 +167,44 @@ private struct SizeGroup: View {
                 .help("\(size.title) (\(size.key))")
             }
         }
+    }
+}
+
+/// Finds API keys, tokens, passwords, emails and card numbers in the screenshot and blacks them out.
+private struct SecretsButton: View {
+    @ObservedObject var model: EditorModel
+    let compact: Bool
+    @State private var working = false
+    @State private var result: String?
+
+    var body: some View {
+        Button {
+            Task { await run() }
+        } label: {
+            HStack(spacing: 5) {
+                if working {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Image(systemName: "lock.shield")
+                }
+                if let result {
+                    Text(result).foregroundStyle(.secondary)
+                } else if !compact {
+                    Text("Hide Secrets")
+                }
+            }
+        }
+        .disabled(working)
+        .help("Black out API keys, tokens, passwords, emails and card numbers. Check the result before sharing: it only finds what it can read.")
+    }
+
+    private func run() async {
+        working = true
+        let count = await model.redactSecrets()
+        working = false
+        result = count == 0 ? "None found" : "Hid \(count)"
+        try? await Task.sleep(for: .seconds(2.5))
+        result = nil
     }
 }
 

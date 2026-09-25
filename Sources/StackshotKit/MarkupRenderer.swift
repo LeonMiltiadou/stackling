@@ -64,6 +64,7 @@ enum MarkupRenderer {
         case .pen, .highlighter: drawFreehand(a)
         case .text: drawText(a)
         case .counter: drawCounter(a)
+        case .redact where a.solid == true: drawSolidBlock(a.rect)
         case .redact: drawPixelated(base: base, rect: a.rect)
         }
     }
@@ -170,6 +171,11 @@ enum MarkupRenderer {
 
     /// Replaces the area with big blocks built from the original pixels, so exported
     /// images don't contain anything readable underneath.
+    static func drawSolidBlock(_ rect: CGRect) {
+        RGBA.redactFill.ns.setFill()
+        NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3).fill()
+    }
+
     static func drawPixelated(base: CGImage, rect: CGRect) {
         let bounds = CGRect(x: 0, y: 0, width: base.width, height: base.height)
         let r = rect.integral.intersection(bounds)
