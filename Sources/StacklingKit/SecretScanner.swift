@@ -74,6 +74,9 @@ enum SecretFinder {
         let kind: SecretScanner.Kind
         /// In image pixels, origin top-left, matching `Annotation` coordinates.
         let rect: CGRect
+        /// The matched text, and the whole line it was on. Stay on this Mac: only a masked description is ever sent anywhere.
+        var text = ""
+        var line = ""
     }
 
     /// A little breathing room around each box so no edge of a character peeks out.
@@ -111,7 +114,7 @@ enum SecretFinder {
                 width: box.width * imageSize.width,
                 height: box.height * imageSize.height
             ).insetBy(dx: -padding, dy: -padding)
-            return Found(kind: match.kind, rect: rect)
+            return Found(kind: match.kind, rect: rect, text: String(candidate.string[match.range]), line: candidate.string)
         }
     }
 }

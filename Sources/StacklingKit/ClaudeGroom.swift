@@ -64,6 +64,12 @@ struct GroomEntry: Identifiable {
     var folder: String
     let reason: String
     var include = true
+    /// Jev's guess that this shot is throwaway, when junk-spotting is on.
+    var junkChance: Double?
+    /// Move it to the Trash instead of filing it. Only ever ticked by you.
+    var trash = false
+
+    var looksLikeJunk: Bool { (junkChance ?? 0) >= JunkSpotter.suggestAbove }
 }
 
 /// Turning Claude's suggestions into safe file names and destinations.
@@ -158,6 +164,8 @@ final class GroomModel: ObservableObject {
                 )
                 guard !Task.isCancelled else { return }
                 entries = GroomPlan.entries(for: files, suggestions: suggestions, in: folder)
+                let junk = await JunkSpotter.junkChances(for: files)
+                for i in entries.indices { entries[i].junkChance = junk[entries[i].file] }
                 phase = entries.isEmpty ? .failed("Claude didn't suggest anything for these files.") : .review
                 loadThumbnails()
             } catch {
@@ -177,7 +185,9 @@ final class GroomModel: ObservableObject {
     func apply() {
         var moves: [URL: URL] = [:]
         var failures = 0
-        for entry in entries where entry.include {
+        let binned = entries.filter { $0.include && $0.trash }
+        if !binned.isEmpty { LibraryActions.trash(binned.map { LibraryIndex.Item(url: $0.file, kind: LibraryIndex.kind(of: $0.file) ?? .still, created: Date(), folder: nil) }) }
+        for entry in entries where entry.include && !entry.trash {
             let dest = GroomPlan.destination(for: entry, root: root)
             do {
                 try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -192,6 +202,7 @@ final class GroomModel: ObservableObject {
         let folders = Set(moves.values.map { $0.deletingLastPathComponent() }).count
         Log.library.info("groom.applied moved=\(moves.count) folders=\(folders) failed=\(failures)")
         var summary = "Filed \(moves.count) shot\(moves.count == 1 ? "" : "s") into \(folders) folder\(folders == 1 ? "" : "s")."
+        if !binned.isEmpty { summary += " Moved \(binned.count) to the Trash." }
         if failures > 0 { summary += " \(failures) couldn't be moved; see the log." }
         phase = .done(summary)
     }
@@ -310,7 +321,17 @@ private struct GroomRow: View {
                     Text(".\(entry.file.pathExtension)").foregroundStyle(.secondary)
                 }
                 .textFieldStyle(.roundedBorder)
-                Text(entry.reason).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                HStack(spacing: 8) {
+                    Text(entry.reason).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    if entry.looksLikeJunk {
+                        Toggle(isOn: $entry.trash) {
+                            Label("Looks like junk: trash it", systemImage: "trash")
+                        }
+                        .toggleStyle(.checkbox)
+                        .font(.caption)
+                        .help("Jev thinks this shot is throwaway (\(Int((entry.junkChance ?? 0) * 100))% sure). Tick to move it to the Trash instead of filing it.")
+                    }
+                }
             }
         }
         .padding(.vertical, 4)

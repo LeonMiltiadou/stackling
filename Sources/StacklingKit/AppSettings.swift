@@ -2,6 +2,9 @@ import Foundation
 
 /// Every UserDefaults key Stackling uses, in one place.
 enum DefaultsKey {
+    static let jevAutoFile = "jev.autoFile"
+    static let jevCheckSecrets = "jev.checkSecrets"
+    static let jevSpotJunk = "jev.spotJunk"
     static let migratedFromStackshot = "rename.fromStackshot"
     static let claudeModel = "claudeModel"
     static let showKeystrokes = "showKeystrokes"
@@ -75,6 +78,24 @@ enum AppSettings {
     static var claudeModel: String {
         get { d.string(forKey: DefaultsKey.claudeModel) ?? "sonnet" }
         set { d.set(newValue, forKey: DefaultsKey.claudeModel) }
+    }
+
+    /// Jev: file each new capture into the folder it belongs in.
+    static var jevAutoFile: Bool {
+        get { d.bool(forKey: DefaultsKey.jevAutoFile) }
+        set { d.set(newValue, forKey: DefaultsKey.jevAutoFile) }
+    }
+
+    /// Jev: double-check what Hide Secrets finds, so examples and placeholders stay readable.
+    static var jevCheckSecrets: Bool {
+        get { d.bool(forKey: DefaultsKey.jevCheckSecrets) }
+        set { d.set(newValue, forKey: DefaultsKey.jevCheckSecrets) }
+    }
+
+    /// Jev: suggest throwaway shots for the Trash when tidying.
+    static var jevSpotJunk: Bool {
+        get { d.bool(forKey: DefaultsKey.jevSpotJunk) }
+        set { d.set(newValue, forKey: DefaultsKey.jevSpotJunk) }
     }
 
     /// Show the shortcuts you press, as key caps, in area and full-screen recordings.

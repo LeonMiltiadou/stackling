@@ -125,7 +125,7 @@ final class EditorModel: ObservableObject {
     /// Finds keys, tokens, passwords and the like, and covers each with a solid block (one undo step).
     /// Returns how many it covered.
     func redactSecrets() async -> Int {
-        let found = await SecretFinder.find(in: base)
+        let found = await SecretCheck.filter(await SecretFinder.find(in: base))
         let fresh = found.filter { secret in
             !markup.items.contains { $0.tool == .redact && $0.rect.contains(secret.rect.insetBy(dx: 1, dy: 1)) }
         }

@@ -90,6 +90,12 @@ appear.
   with `--setting-sources ""` so the user's own CLAUDE.md and hooks stay out, and only Read/Glob tools.
   The live test costs a few cents and runs only with `STACKLING_LIVE_CLAUDE=1 swift test --filter ClaudeCodeTests`.
 
+- **Jev** (`Jev.swift`, `JevFeatures.swift`): TypeSafe's fast yes/no and choice API, reached directly or via
+  OpenRouter (keys starting `sk-or-`). Send only OCR text, never images; mask secret candidates. The key
+  lives in the Keychain and must be saved by the app itself (Settings, or
+  `Stackling --save-jev-key` on stdin): an item added with the `security` tool makes macOS prompt on every
+  read. `JevKey` reads it once per launch; `exists()`/`provider()` use attributes only, so they never
+  prompt. The live test runs only with `STACKLING_JEV_KEY=… swift test --filter JevTests`.
 - **Renamed from Stackshot**: `RenameMigration` runs once at launch (before registered defaults exist) and
   copies the old app's settings, moves `~/Pictures/Stackshot`, and rewrites saved stack paths. Old
   `.stackshot` edits files are renamed on first touch in `Markup`. Keep this until nobody's upgrading from 0.1.

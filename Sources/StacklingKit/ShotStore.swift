@@ -37,10 +37,13 @@ final class ShotStore: ObservableObject {
 
     /// A brand-new screenshot or recording. Also copies it if you've asked for that.
     func addCapture(_ url: URL, created: Date = Date()) {
-        guard add(url, created: created), AppSettings.copyOnCapture, let shot = shots.first(where: { $0.url == url }) else { return }
-        Clipboard.write(shot: shot)
-        shot.flashDone("Copied")
-        Log.actions.info("copy file=\(url.lastPathComponent, privacy: .public) reason=copy-on-capture")
+        guard add(url, created: created), let shot = shots.first(where: { $0.url == url }) else { return }
+        if AppSettings.copyOnCapture {
+            Clipboard.write(shot: shot)
+            shot.flashDone("Copied")
+            Log.actions.info("copy file=\(url.lastPathComponent, privacy: .public) reason=copy-on-capture")
+        }
+        AutoFiler.consider(shot)
     }
 
     @discardableResult

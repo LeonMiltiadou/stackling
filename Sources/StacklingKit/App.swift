@@ -10,6 +10,13 @@ public enum StacklingApp {
             Uninstall.run()
             exit(0)
         }
+        // `Stackling --save-jev-key < key.txt`: saves a Jev key for scripts and setup. It comes in on
+        // standard input, not as an argument, so it never shows up in the process list. Saved by the app
+        // itself, so the Keychain treats it as Stackling's and never asks you to allow it.
+        if CommandLine.arguments.contains("--save-jev-key") {
+            let key = String(data: FileHandle.standardInput.readDataToEndOfFile(), encoding: .utf8) ?? ""
+            exit(!key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && JevKey.save(key) ? 0 : 1)
+        }
         RenameMigration.runIfNeeded()
         AppSettings.registerDefaults()
         let app = NSApplication.shared

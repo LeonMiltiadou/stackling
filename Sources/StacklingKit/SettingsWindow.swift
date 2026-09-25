@@ -62,6 +62,39 @@ final class SettingsModel: ObservableObject {
         }
     }
 
+    // Jev
+
+    @Published var jevConnected = Jev.isConfigured
+    var jevProvider: String { JevKey.provider()?.name ?? "" }
+
+    func saveJevKey(_ key: String) {
+        guard !key.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        JevKey.save(key)
+        jevConnected = Jev.isConfigured
+        changed("jevKey", "saved")
+    }
+
+    func removeJevKey() {
+        JevKey.remove()
+        jevConnected = false
+        changed("jevKey", "removed")
+    }
+
+    var jevAutoFile: Bool {
+        get { AppSettings.jevAutoFile }
+        set { AppSettings.jevAutoFile = newValue; changed("jevAutoFile", newValue) }
+    }
+
+    var jevCheckSecrets: Bool {
+        get { AppSettings.jevCheckSecrets }
+        set { AppSettings.jevCheckSecrets = newValue; changed("jevCheckSecrets", newValue) }
+    }
+
+    var jevSpotJunk: Bool {
+        get { AppSettings.jevSpotJunk }
+        set { AppSettings.jevSpotJunk = newValue; changed("jevSpotJunk", newValue) }
+    }
+
     var claudeModel: String {
         get { AppSettings.claudeModel }
         set { AppSettings.claudeModel = newValue; changed("claudeModel", newValue) }
@@ -249,6 +282,8 @@ private struct SettingsView: View {
             } footer: {
                 Text("Claude looks at your loose screenshots and suggests a name and a folder for each. You review everything before anything moves. Card menus also have Name with Claude.")
             }
+
+            JevSettings(model: model)
         }
         .formStyle(.grouped)
     }
@@ -289,5 +324,39 @@ private struct SettingsView: View {
     private func displayPath(_ url: URL) -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return url.path.hasPrefix(home) ? "~" + url.path.dropFirst(home.count) : url.path
+    }
+}
+
+/// Settings › Library › Jev: a key (kept in the Keychain) and a switch for each thing Jev helps with.
+private struct JevSettings: View {
+    @ObservedObject var model: SettingsModel
+    @State private var key = ""
+
+    var body: some View {
+        Section {
+            if model.jevConnected {
+                LabeledContent("Connected") {
+                    HStack(spacing: 8) {
+                        Label(model.jevProvider.isEmpty ? "Key saved" : "via \(model.jevProvider)", systemImage: "checkmark.circle.fill").foregroundStyle(.secondary)
+                        Button("Remove Key") { model.removeJevKey() }
+                    }
+                }
+            } else {
+                HStack {
+                    SecureField("TypeSafe or OpenRouter key", text: $key)
+                    Button("Save") { model.saveJevKey(key); key = "" }.disabled(key.isEmpty)
+                }
+            }
+            Toggle("File new shots into the right folder", isOn: Binding(get: { model.jevAutoFile }, set: { model.jevAutoFile = $0 }))
+                .disabled(!model.jevConnected)
+            Toggle("Double-check Hide Secrets", isOn: Binding(get: { model.jevCheckSecrets }, set: { model.jevCheckSecrets = $0 }))
+                .disabled(!model.jevConnected)
+            Toggle("Spot junk when tidying", isOn: Binding(get: { model.jevSpotJunk }, set: { model.jevSpotJunk = $0 }))
+                .disabled(!model.jevConnected)
+        } header: {
+            Text("Jev")
+        } footer: {
+            Text("Jev makes quick yes-or-no and pick-one decisions, in about a tenth of a second for a fraction of a penny. It only ever sees the words Stackling read from a shot, never the picture, and Hide Secrets sends a masked description, never the secret itself. New shots are only filed when Jev is sure, and junk is only suggested: nothing is binned unless you tick it.")
+        }
     }
 }

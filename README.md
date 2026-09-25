@@ -163,6 +163,21 @@ Screenshot 2026-09-25 at 10.00.00.png  →  Bugs/checkout-summary-cart-items-und
 You see every suggestion first and can change or skip any of them. Nothing moves until you click **Apply**.
 It uses your own Claude account and only ever reads your screenshots.
 
+### ⚡ Quick decisions with Jev (optional)
+
+[Jev](https://typesafe.ai) is a small, very fast AI (answers in well under a second, for fractions of
+a penny) that Stackling can ask for quick yes/no calls. Add a TypeSafe or OpenRouter key in
+**Settings → Library → Jev**, then turn on whichever of these you want:
+
+| Setting | What it does |
+| --- | --- |
+| **File new shots into the right folder** | Reads the text in each new shot and files it into one of your folders, only when Jev is at least 70% sure. Otherwise it stays put. |
+| **Double-check Hide Secrets** | 🛡 Hide Secrets asks Jev whether each thing it found really looks like a secret, so fewer harmless words get blacked out. |
+| **Spot junk when tidying** | ✨ Tidy marks shots that look like accidental or throwaway captures, with a tick box to send them to the Trash. |
+
+Jev only ever gets the **text** Stackling read from a shot, never the picture. Secrets are masked before
+they're sent (`sk_l… (32 characters: letters, digits)`). Your key is kept in the macOS Keychain.
+
 ## What works with what
 
 | | Screenshots | Screen recordings | GIFs |
@@ -187,7 +202,8 @@ and whether Stackling handles `⇧⌘4` or leaves it to macOS.
 ## Your privacy
 
 Stackling works entirely on your Mac. It doesn't have an account and doesn't send anything anywhere.
-The one exception is **Tidy with Claude**, which only runs when you ask and uses your own Claude Code.
+The exceptions are the optional AI features: **Tidy with Claude**, which only runs when you ask and uses
+your own Claude Code, and **Jev**, which only runs if you add your own key and turn it on, and only sees text.
 
 It asks for:
 
