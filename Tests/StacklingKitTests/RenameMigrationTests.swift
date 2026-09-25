@@ -19,11 +19,12 @@ import Testing
         CFPreferencesSetAppValue("tidyAfterDays" as CFString, 30 as CFNumber, app)
         CFPreferencesSetAppValue("original.location" as CFString, "__unset__" as CFString, app)
         CFPreferencesSetAppValue("copyOnCapture" as CFString, kCFBooleanTrue, app)
+        CFPreferencesSetAppValue("askedScreenRecording" as CFString, kCFBooleanTrue, app)
         CFPreferencesAppSynchronize(app)
         let defaults = try #require(UserDefaults(suiteName: newSuite))
         defer {
             defaults.removePersistentDomain(forName: newSuite)
-            for key in ["tidyAfterDays", "original.location", "copyOnCapture"] { CFPreferencesSetAppValue(key as CFString, nil, app) }
+            for key in ["tidyAfterDays", "original.location", "copyOnCapture", "askedScreenRecording"] { CFPreferencesSetAppValue(key as CFString, nil, app) }
             CFPreferencesAppSynchronize(app)
         }
         defaults.set(false, forKey: "copyOnCapture")
@@ -34,6 +35,7 @@ import Testing
         #expect(defaults.integer(forKey: "tidyAfterDays") == 30)
         #expect(defaults.string(forKey: "original.location") == "__unset__")
         #expect(defaults.bool(forKey: "copyOnCapture") == false)
+        #expect(defaults.object(forKey: "askedScreenRecording") == nil)
     }
 
     @Test func oldEditsFilesAreFoundUnderTheNewName() throws {

@@ -7,6 +7,8 @@ import AppKit
 enum RenameMigration {
     nonisolated static let legacyBundleID = "com.leonmiltiadou.stackshot"
     nonisolated static let legacySidecarExtension = "stackshot"
+    /// Permissions belong to each app, so "we've already asked" can't carry across: Stackling has to ask for itself.
+    nonisolated static let perAppKeys: Set<String> = [DefaultsKey.askedScreenRecording]
 
     static var legacyLibrary: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/Stackshot", isDirectory: true)
@@ -33,7 +35,7 @@ enum RenameMigration {
         else { return 0 }
         let saved = domainName.flatMap { d.persistentDomain(forName: $0) } ?? [:]
         var copied = 0
-        for (key, value) in values where saved[key] == nil {
+        for (key, value) in values where saved[key] == nil && !perAppKeys.contains(key) {
             d.set(value, forKey: key)
             copied += 1
         }

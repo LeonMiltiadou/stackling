@@ -27,6 +27,8 @@ enum ScreenCapturePermission {
         alert.addButton(withTitle: "Open Settings")
         alert.addButton(withTitle: "Not Now")
         if alert.runModal() == .alertFirstButtonReturn {
+            // Asking again is what puts Stackling in that list; without it there'd be nothing to switch on.
+            CGRequestScreenCaptureAccess()
             NSWorkspace.shared.open(settingsURL)
         }
         return false
