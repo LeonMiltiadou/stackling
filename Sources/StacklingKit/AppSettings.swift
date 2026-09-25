@@ -5,6 +5,7 @@ enum DefaultsKey {
     static let jevAutoFile = "jev.autoFile"
     static let jevCheckSecrets = "jev.checkSecrets"
     static let jevSpotJunk = "jev.spotJunk"
+    static let jevDescribePictures = "jev.describePictures"
     static let migratedFromStackshot = "rename.fromStackshot"
     static let claudeModel = "claudeModel"
     static let showKeystrokes = "showKeystrokes"
@@ -93,6 +94,12 @@ enum AppSettings {
     }
 
     /// Jev: suggest throwaway shots for the Trash when tidying.
+    /// Lets a vision model describe shots with next to no words, so auto-filing can place them. Sends the picture.
+    static var jevDescribePictures: Bool {
+        get { d.bool(forKey: DefaultsKey.jevDescribePictures) }
+        set { d.set(newValue, forKey: DefaultsKey.jevDescribePictures) }
+    }
+
     static var jevSpotJunk: Bool {
         get { d.bool(forKey: DefaultsKey.jevSpotJunk) }
         set { d.set(newValue, forKey: DefaultsKey.jevSpotJunk) }

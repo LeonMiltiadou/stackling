@@ -90,6 +90,13 @@ final class SettingsModel: ObservableObject {
         set { AppSettings.jevCheckSecrets = newValue; changed("jevCheckSecrets", newValue) }
     }
 
+    var jevDescribePictures: Bool {
+        get { AppSettings.jevDescribePictures }
+        set { AppSettings.jevDescribePictures = newValue; changed("jevDescribePictures", newValue) }
+    }
+
+    var canDescribePictures: Bool { jevConnected && PictureDescriber.isAvailable }
+
     var jevSpotJunk: Bool {
         get { AppSettings.jevSpotJunk }
         set { AppSettings.jevSpotJunk = newValue; changed("jevSpotJunk", newValue) }
@@ -349,6 +356,14 @@ private struct JevSettings: View {
             }
             Toggle("File new shots into the right folder", isOn: Binding(get: { model.jevAutoFile }, set: { model.jevAutoFile = $0 }))
                 .disabled(!model.jevConnected)
+            Toggle(isOn: Binding(get: { model.jevDescribePictures }, set: { model.jevDescribePictures = $0 })) {
+                Text("Describe shots with no words")
+                Text(model.canDescribePictures || !model.jevConnected
+                     ? "Sends a small copy of the picture to a vision model, only when there are next to no words to go on."
+                     : "Needs an OpenRouter key.")
+            }
+            .padding(.leading, 20)
+            .disabled(!model.canDescribePictures || !model.jevAutoFile)
             Toggle("Double-check Hide Secrets", isOn: Binding(get: { model.jevCheckSecrets }, set: { model.jevCheckSecrets = $0 }))
                 .disabled(!model.jevConnected)
             Toggle("Spot junk when tidying", isOn: Binding(get: { model.jevSpotJunk }, set: { model.jevSpotJunk = $0 }))
@@ -356,7 +371,7 @@ private struct JevSettings: View {
         } header: {
             Text("Jev")
         } footer: {
-            Text("Jev makes quick yes-or-no and pick-one decisions, in about a tenth of a second for a fraction of a penny. It only ever sees the words Stackling read from a shot, never the picture, and Hide Secrets sends a masked description, never the secret itself. New shots are only filed when Jev is sure, and junk is only suggested: nothing is binned unless you tick it.")
+            Text("Jev makes quick yes-or-no and pick-one decisions, in well under a second for a fraction of a penny. It sees text, never the picture: the words in a shot, the app and window title it came from, and which of your filed shots it looks like (worked out on this Mac). Hide Secrets sends a masked description, never the secret itself. New shots are only filed when Jev is sure, and junk is only suggested: nothing is binned unless you tick it.")
         }
     }
 }

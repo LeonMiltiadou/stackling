@@ -171,11 +171,13 @@ a penny) that Stackling can ask for quick yes/no calls. Add a TypeSafe or OpenRo
 
 | Setting | What it does |
 | --- | --- |
-| **File new shots into the right folder** | Reads the text in each new shot and files it into one of your folders, only when Jev is at least 70% sure. Otherwise it stays put. |
+| **File new shots into the right folder** | Files each new shot into one of your folders when Jev is at least 60% sure. It goes by the words in the shot, the app and window it came from, and which shots already in your folders it looks like, so the more you file, the better it gets. Otherwise the shot stays put. |
+| ↳ **Describe shots with no words** | For shots with next to no words, a small vision model describes the picture so Jev has something to go on. Needs an OpenRouter key. This is the only time a picture leaves your Mac, so it's off until you turn it on. |
 | **Double-check Hide Secrets** | 🛡 Hide Secrets asks Jev whether each thing it found really looks like a secret, so fewer harmless words get blacked out. |
 | **Spot junk when tidying** | ✨ Tidy marks shots that look like accidental or throwaway captures, with a tick box to send them to the Trash. |
 
-Jev only ever gets the **text** Stackling read from a shot, never the picture. Secrets are masked before
+Jev only ever gets **text**: the words Stackling read from a shot, the app and window title, and which of your
+shots it resembles (worked out on your Mac with Apple's image matching). Never the picture. Secrets are masked before
 they're sent (`sk_l… (32 characters: letters, digits)`). Your key is kept in the macOS Keychain.
 
 ## What works with what

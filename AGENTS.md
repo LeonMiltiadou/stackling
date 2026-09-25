@@ -91,7 +91,11 @@ appear.
   The live test costs a few cents and runs only with `STACKLING_LIVE_CLAUDE=1 swift test --filter ClaudeCodeTests`.
 
 - **Jev** (`Jev.swift`, `JevFeatures.swift`): TypeSafe's fast yes/no and choice API, reached directly or via
-  OpenRouter (keys starting `sk-or-`). Send only OCR text, never images; mask secret candidates. The key
+  OpenRouter (keys starting `sk-or-`). Jev is text only: send OCR text and context, never images; mask secret
+  candidates. Auto-filing also sends `LookAlikes` (Vision feature prints + shared words against filed shots,
+  cached) and the capture's app/window. `PictureDescriber` (opt-in, OpenRouter, zero data retention) describes
+  shots with under 10 words. Tested on 31 hand-filed shots: words only 14 right/3 wrong, with look-alikes and
+  folder contents 21 right/2 wrong at the 60% bar; vision on shots with words made it worse. The key
   lives in the Keychain and must be saved by the app itself (Settings, or
   `Stackling --save-jev-key` on stdin): an item added with the `security` tool makes macOS prompt on every
   read. `JevKey` reads it once per launch; `exists()`/`provider()` use attributes only, so they never

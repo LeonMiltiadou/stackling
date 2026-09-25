@@ -60,6 +60,12 @@ final class SearchIndex: ObservableObject {
         query.lowercased().split(whereSeparator: \.isWhitespace).map(String.init)
     }
 
+    /// The words already read from a shot, if it's been read.
+    func text(for url: URL) -> String? {
+        loadIfNeeded()
+        return entries[url.path]?.text
+    }
+
     /// Sets a shot's text directly, for tests and the website's renders.
     func remember(_ text: String, for url: URL) {
         entries[url.path] = Entry(modified: url.modificationDate?.timeIntervalSinceReferenceDate ?? 0, text: text)
@@ -135,7 +141,7 @@ final class SearchIndex: ObservableObject {
     }
 
     /// The picture itself, the first frame of a GIF, or a frame from the middle of a video.
-    nonisolated private static func firstImage(of url: URL) async -> CGImage? {
+    nonisolated static func firstImage(of url: URL) async -> CGImage? {
         if LibraryIndex.kind(of: url) == .video {
             let asset = AVURLAsset(url: url)
             let generator = AVAssetImageGenerator(asset: asset)

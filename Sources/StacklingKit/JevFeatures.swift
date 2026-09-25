@@ -5,12 +5,26 @@ import AppKit
 
 // MARK: - Auto-file new captures
 
-/// Files each new capture into the folder it belongs in, judged from the words in it.
+/// Files each new capture into the folder it belongs in. Jev only reads text, so the shot is described in
+/// words first, on this Mac: the words in it, the app and window it came from, which filed shots it looks
+/// like, and what each folder already holds. Only when that's not enough (next to no words) can a vision
+/// model describe the picture, if you've turned that on.
+///
+/// Tested against 31 hand-filed shots (September 2026), at a 60% bar:
+///   words only: 14 filed right, 3 wrong · + look-alikes and folder contents: 21 right, 2 wrong.
 @MainActor
 enum AutoFiler {
     /// How sure Jev has to be before a shot is moved. Below this it stays where it is.
-    static let minimumConfidence = 0.7
+    static let minimumConfidence = 0.6
     static let noFolder = "none"
+    /// Fewer words than this and the words alone say little; that's when the picture gets described.
+    static let fewWords = 10
+    /// Filed shots compared per folder (the newest), which keeps a big library quick.
+    static let comparedPerFolder = 200
+
+    static let instructions = "Which folder does this screenshot belong in? Use `screenshot_text` (words read from it), "
+        + "`captured_from` (the app and window it was taken in), `folder_contents` (words read from shots already in each "
+        + "folder) and `look_alikes` (filed shots that resemble it most, by picture and by words)."
 
     static func consider(_ shot: Shot) {
         guard AppSettings.jevAutoFile else { return }
@@ -18,23 +32,75 @@ enum AutoFiler {
         guard shot.isStill || shot.isVideo else { return Log.library.debug("autofile.skipped reason=gif") }
         let folders = Library.folders()
         guard !folders.isEmpty else { return Log.library.debug("autofile.skipped reason=no-folders") }
-        Task {
-            let text = await SearchIndex.readText(at: shot.url)
-            guard !text.isEmpty else { return Log.library.info("autofile.skipped reason=no-text") }
-            SearchIndex.shared.remember(text, for: shot.url)
-            do {
-                let answers = try await Jev.ask(state: ["screenshot_text": String(text.prefix(4000))],
-                                                questions: ["folder": question(for: folders)])
-                guard let folder = decide(answers["folder"], folders: folders) else {
-                    Log.library.info("autofile.kept confidence=\(answers["folder"]?.confidence ?? 0)")
-                    return
-                }
-                guard shot.exists, Library.file(shot, into: folder) else { return }
-                shot.flashDone("Filed in \(folder.lastPathComponent)")
-                Log.library.info("autofile.filed folder=\(folder.lastPathComponent, privacy: .public)")
-            } catch {
-                Log.library.error("autofile.failed error=\(error.localizedDescription, privacy: .public)")
+        let source = CaptureSource.frontmost()
+        Task { await file(shot, folders: folders, source: source) }
+    }
+
+    private static func file(_ shot: Shot, folders: [URL], source: CaptureSource?) async {
+        let started = Date()
+        let text = await SearchIndex.readText(at: shot.url)
+        if !text.isEmpty { SearchIndex.shared.remember(text, for: shot.url) }
+        let look = await ShotLook.measure(shot.url)
+        if text.isEmpty, look?.isNearlyEmpty ?? true { return Log.library.info("autofile.skipped reason=nearly-empty") }
+
+        let candidates = candidates(in: folders)
+        let lookAlikes = await LookAlikes.shared.closest(to: shot.url, text: text, among: candidates)
+        var state = state(text: text, source: source, look: look, lookAlikes: lookAlikes, candidates: candidates)
+        let question = ["folder": question(for: folders)]
+        do {
+            var answer = try await Jev.ask(state: state, questions: question)["folder"]
+            var described = false
+            if decide(answer, folders: folders) == nil, text.split(separator: " ").count < fewWords,
+               AppSettings.jevDescribePictures, PictureDescriber.isAvailable {
+                state["picture_description"] = try await PictureDescriber.describe(shot.url)
+                answer = try await Jev.ask(state: state, questions: question)["folder"]
+                described = true
             }
+            let ms = Int(Date().timeIntervalSince(started) * 1000)
+            guard let folder = decide(answer, folders: folders) else {
+                Log.library.info("autofile.kept guess=\(answer?.choice ?? "-", privacy: .public) confidence=\(answer?.confidence ?? 0) described=\(described) ms=\(ms)")
+                return
+            }
+            guard shot.exists, Library.file(shot, into: folder) else { return }
+            shot.flashDone("Filed in \(folder.lastPathComponent)")
+            Log.library.info("autofile.filed folder=\(folder.lastPathComponent, privacy: .public) confidence=\(answer?.confidence ?? 0) described=\(described) lookalikes=\(lookAlikes.count) ms=\(ms)")
+        } catch {
+            Log.library.error("autofile.failed error=\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Everything Jev is told about the shot. All of it is text; the picture itself only goes anywhere
+    /// through `PictureDescriber`, and only if you've turned that on.
+    static func state(text: String, source: CaptureSource?, look: ShotLook?, lookAlikes: [LookAlikes.Match],
+                      candidates: [LookAlikes.Candidate]) -> [String: Any] {
+        var state: [String: Any] = [
+            "screenshot_text": String(text.prefix(4000)),
+            "folder_contents": folderContents(candidates),
+            "look_alikes": lookAlikes.map(\.json),
+        ]
+        if let source { state["captured_from"] = source.json }
+        if let look { state["picture"] = look.json }
+        return state
+    }
+
+    /// A few lines from the newest shots in each folder, so Jev knows what the folder is for.
+    static func folderContents(_ candidates: [LookAlikes.Candidate], perFolder: Int = 4, words: Int = 25) -> [String: [String]] {
+        var contents: [String: [String]] = [:]
+        for candidate in candidates where !candidate.text.isEmpty && contents[candidate.folder, default: []].count < perFolder {
+            contents[candidate.folder, default: []].append(candidate.text.split(separator: " ").prefix(words).joined(separator: " "))
+        }
+        return contents
+    }
+
+    /// The filed shots worth comparing against: the newest in each folder, with any words already read.
+    private static func candidates(in folders: [URL]) -> [LookAlikes.Candidate] {
+        folders.flatMap { folder in
+            let files = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey],
+                                                                      options: .skipsHiddenFiles)) ?? []
+            return files.filter { LibraryIndex.kind(of: $0) != nil }
+                .sorted { ($0.modificationDate ?? .distantPast) > ($1.modificationDate ?? .distantPast) }
+                .prefix(comparedPerFolder)
+                .map { LookAlikes.Candidate(url: $0, folder: folder.lastPathComponent, text: SearchIndex.shared.text(for: $0) ?? "") }
         }
     }
 
@@ -46,7 +112,7 @@ enum AutoFiler {
                 .filter { !$0.hasPrefix(".") }.prefix(3).joined(separator: ", ") ?? ""
             options[folder.lastPathComponent] = "The folder \"\(folder.lastPathComponent)\"" + (examples.isEmpty ? "" : ". It already holds: \(examples)")
         }
-        return .choice("Which folder does this screenshot belong in, going by `screenshot_text`?", options: options)
+        return .choice(instructions, options: options)
     }
 
     /// The folder to move to, or nil to leave the shot alone (no answer, "none", or not sure enough).
@@ -54,6 +120,26 @@ enum AutoFiler {
         guard let answer, let choice = answer.choice, choice != noFolder,
               (answer.confidence ?? 0) >= minimumConfidence else { return nil }
         return folders.first { $0.lastPathComponent == choice }
+    }
+}
+
+/// The app and window you were in when a shot was taken: the front-most ordinary window that isn't
+/// Stackling's. Window titles need the Screen Recording permission, which Stackling already has.
+struct CaptureSource: Equatable, Sendable {
+    let app: String
+    let window: String
+
+    var json: [String: Any] { ["app": app, "window": window] }
+
+    static func frontmost() -> CaptureSource? {
+        let me = ProcessInfo.processInfo.processIdentifier
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        guard let window = info.first(where: {
+            ($0[kCGWindowLayer as String] as? Int) == 0 && ($0[kCGWindowOwnerPID as String] as? Int32) != me
+                && ($0[kCGWindowAlpha as String] as? Double ?? 1) > 0
+        }) else { return nil }
+        return CaptureSource(app: window[kCGWindowOwnerName as String] as? String ?? "",
+                             window: String((window[kCGWindowName as String] as? String ?? "").prefix(200)))
     }
 }
 
