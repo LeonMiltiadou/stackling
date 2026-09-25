@@ -19,8 +19,8 @@ scripts/build.sh install
 That builds the app, copies it to `/Applications` and opens it.
 Needs macOS 14 or newer and Xcode (or the Xcode command line tools).
 
-The first time it runs, macOS asks if Stackshot can see your Desktop folder.
-Say yes, that's where your screenshots land.
+Screenshots save to **Pictures › Stackshot** rather than the Desktop (see [Your library](#your-library)).
+If you'd already picked another folder, Stackshot leaves it alone.
 
 ## Sharing it with someone
 
@@ -98,9 +98,14 @@ Hover a card to see its buttons.
 | Drag **✥** (top middle) | Moves the whole stack somewhere else, handy when you need to screenshot the bottom-left | No |
 | **↙** (next to ✥) | Puts the stack back in the corner. Double-clicking ✥ or dropping it near the corner does the same | No |
 | **🗑** (top right) | Moves the file to the Trash | Yes |
-| **…** | Move to…, Show in Finder, Open in Preview, Pin, Save Edits Into Image, Share, Copy File Path | Depends |
+| **…** | File Into a folder, Move to…, Show in Finder, Open in Preview, Pin, Save Edits Into Image, Share, Copy File Path | Depends |
 
 A little ✏️ on the card means it has edits.
+
+**Keyboard:** while your mouse is on a card, `⌘C` copies, `Space` or `E` edits (or previews a
+recording), `T` copies the text, `P` pins, `G` copies a recording as a GIF, `Esc` dismisses and
+`⌘⌫` trashes. These only work while you're pointing at a card and have moved the mouse in the last
+few seconds, so a mouse parked in the corner never eats what you type elsewhere.
 
 ### The editor
 
@@ -143,6 +148,8 @@ A pinned shot floats above every window, handy for copying something from one ap
 - **N more** above the stack fans everything out into a scrollable list. The arrow collapses it again.
 - **Clear all** hides every card. The files stay where they are.
 - Closed one by accident? Menu bar icon → **Recently Dismissed** brings it back.
+- The stack survives quitting, restarts and updates. It comes back shrunk, so it doesn't jump out at you.
+- Want every new shot on the clipboard straight away? Settings → General → **Copy new shots to the clipboard**.
 
 ### Shrinking out of the way
 
@@ -153,15 +160,33 @@ It stays open while your mouse is over it. A new shot opens it by itself.
 While the editor or a recording preview is in front, the stack hides completely so the two
 don't overlap. It comes back when you close the window or switch apps.
 
-Change the timing from the menu bar icon under **Shrink When Idle**: after 1, 2 (default), 5 or
-10 seconds, or never.
+Change the timing in Settings → General: after 1, 2 (default), 5 or 10 seconds, or never.
+
+### Your library
+
+```
+~/Pictures/Stackshot/
+    new shots land here, and get tidied away after 7 days
+    Archive/2026-09/     where tidied shots go
+    Checkout bug/        folders you file shots into: yours, never touched
+```
+
+- **File Into** (card **…** menu) moves a shot into a folder and takes it off the stack. **New Folder…** makes one.
+- **Tidying** runs on launch and every hour. It only touches screenshots and recordings loose at the top of
+  the save folder, and never ones still on the stack. Settings → Library picks 1, 7 (default) or 30 days,
+  or never, and whether it archives into monthly folders (default) or moves them to the Trash.
+- **Got years of screenshots on your Desktop?** Settings → Library → **Move Desktop Screenshots Into the Library…**
+  moves only screenshots and recordings into `Stackshot/From Desktop`, after asking.
+- Menu bar → **Open Library** opens the save folder in Finder.
 
 ### Other bits
 
 - The **Dock badge** shows how many shots are waiting.
 - **Clicking the Dock icon** starts an area capture.
 - **Right-click the Dock icon** for all the capture options.
-- The **menu bar icon** has captures, where screenshots get saved, when the stack shrinks, Open at Login, and **Use Stackshot for ⇧⌘4** (turn it off to give ⇧⌘4 back to macOS).
+- The **menu bar icon** has captures, the stack, Recently Dismissed, Open Library and **Settings…** (`⌘,`).
+- **Settings** has three tabs: General (shrinking, copy on capture, open at login), Library (save folder, tidying)
+  and Shortcuts (every key, plus **Use Stackshot for ⇧⌘4**: turn it off to give ⇧⌘4 back to macOS).
 
 ## What it changes on your Mac
 
@@ -169,11 +194,11 @@ Stackshot remembers what each of these was before it changed them, so uninstalli
 
 | Change | Why | Turn it off |
 | --- | --- | --- |
-| Turns off the Mac's floating thumbnail | Otherwise you'd get two previews, and the Mac holds back the file until its thumbnail slides away | Menu bar → **Show macOS Floating Thumbnail Too** |
-| Takes over `⇧⌘4` | So area captures get the frozen screen and loupe | Menu bar → **Use Stackshot for ⇧⌘4** |
-| Adds `⇧⌘8` and `⇧⌘9` | Window and full-screen capture. Only while Stackshot is running. | Quit Stackshot |
+| Turns off the Mac's floating thumbnail | Otherwise you'd get two previews, and the Mac holds back the file until its thumbnail slides away | Settings → General → **Show the macOS floating thumbnail too** |
+| Takes over `⇧⌘4` | So area captures get the frozen screen and loupe | Settings → Shortcuts → **Use Stackshot for ⇧⌘4** |
+| Adds `⇧⌘7`, `⇧⌘8` and `⇧⌘9` | Recording, window and full-screen capture. Only while Stackshot is running. | Quit Stackshot |
 | Hidden `.stackshot` files next to screenshots you edit | Keeps your edits editable | **Save Edits Into Image**, or uninstall |
-| Where screenshots are saved | Only if you pick a new folder from the menu | Pick Desktop again |
+| Where screenshots are saved | Moves them from the Desktop to Pictures › Stackshot, once, if you were still on the Desktop | Settings → Library → **Choose Folder…** |
 | Login Items | Only if you turn on **Open at Login** | Turn it off |
 
 ## Uninstall (as if it was never there)
@@ -217,7 +242,7 @@ pkill -f Stackshot.app/Contents/MacOS/Stackshot
 defaults delete com.apple.screencapture show-thumbnail
 
 # Remove hidden edit files next to your screenshots
-find ~/Desktop -maxdepth 1 -name '.*.stackshot' -delete
+find ~/Desktop ~/Pictures/Stackshot -name '.*.stackshot' -delete
 
 # Delete the app and its settings, clear permissions
 rm -rf /Applications/Stackshot.app

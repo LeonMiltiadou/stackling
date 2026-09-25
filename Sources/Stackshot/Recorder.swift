@@ -66,7 +66,7 @@ final class Recorder: ObservableObject {
             guard let temp = await session.finish(), !discard else { return }
             do {
                 let url = try Self.moveIntoPlace(temp)
-                ShotStore.shared.add(url)
+                ShotStore.shared.addCapture(url)
             } catch {
                 log.error("Couldn't save recording: \(error.localizedDescription, privacy: .public)")
                 NSSound.beep()

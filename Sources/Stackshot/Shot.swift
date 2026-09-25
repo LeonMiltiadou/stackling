@@ -134,14 +134,44 @@ final class ShotStore: ObservableObject {
 
     private let spring = Animation.spring(response: 0.38, dampingFraction: 0.82)
 
-    func add(_ url: URL, created: Date = Date()) {
-        guard !shots.contains(where: { $0.url == url }) else { return }
+    /// A brand-new screenshot or recording. Also copies it if you've asked for that.
+    func addCapture(_ url: URL, created: Date = Date()) {
+        guard add(url, created: created), Settings.copyOnCapture, let shot = shots.first(where: { $0.url == url }) else { return }
+        Actions.writeToPasteboard(shot)
+        shot.flash("Copied")
+    }
+
+    @discardableResult
+    func add(_ url: URL, created: Date = Date()) -> Bool {
+        guard !shots.contains(where: { $0.url == url }) else { return false }
         recent.removeAll { $0.url == url }
         let shot = Shot(url: url, created: created)
         withAnimation(spring) {
             shots.insert(shot, at: 0)
             minimized = false
         }
+        return true
+    }
+
+    /// Puts back what was on the stack before Stackshot last quit. Starts shrunk, so it doesn't jump out at you.
+    func restoreSaved(shots urls: [URL], recent recentURLs: [URL]) {
+        let created = { (url: URL) in (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date() }
+        shots = urls.map { Shot(url: $0, created: created($0)) }
+        recent = recentURLs.map { Shot(url: $0, created: created($0)) }
+        minimized = !shots.isEmpty
+    }
+
+    /// Files that moved (tidied, filed, moved off the Desktop): keep the cards pointing at them.
+    func relocate(_ moves: [URL: URL]) {
+        for shot in shots + recent {
+            if let to = moves[shot.url.standardizedFileURL] { shot.url = to }
+        }
+    }
+
+    /// Drops dismissed entries for files that were tidied away.
+    func forget(_ urls: [URL]) {
+        let gone = Set(urls.map(\.standardizedFileURL))
+        recent.removeAll { gone.contains($0.url.standardizedFileURL) }
     }
 
     /// Takes it off the stack. The file stays where it is.

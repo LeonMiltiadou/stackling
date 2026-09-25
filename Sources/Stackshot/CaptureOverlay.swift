@@ -232,7 +232,7 @@ final class CaptureController {
             try MarkupRenderer.writePNG(image, to: url, pixelScale: pixelScale)
             setxattr(url.path, "com.apple.metadata:kMDItemIsScreenCapture", Self.plistTrue, Self.plistTrue.count, 0, 0)
             NSSound(contentsOfFile: "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif", byReference: true)?.play()
-            ShotStore.shared.add(url)
+            ShotStore.shared.addCapture(url)
         } catch {
             report(error)
         }
