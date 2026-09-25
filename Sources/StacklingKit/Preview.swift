@@ -25,7 +25,7 @@ final class PreviewWindowController: NSWindowController, NSWindowDelegate {
         controller.window?.center()
     }
 
-    private init(shot: Shot) {
+    init(shot: Shot) {
         model = PreviewModel(shot: shot)
 
         // Fit the video's shape, within most of the screen.

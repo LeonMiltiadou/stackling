@@ -14,8 +14,6 @@ final class KeystrokeOverlay {
     private let model = KeystrokeModel()
     private var monitor: Any?
 
-    /// Window number, so the recorder can let this one window into the video.
-    var windowNumber: CGWindowID { CGWindowID(panel.windowNumber) }
 
     /// Starts showing keys along the bottom of `area` (AppKit global coordinates), or returns nil
     /// when the permission is missing (after asking for it once).

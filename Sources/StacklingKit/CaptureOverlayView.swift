@@ -57,6 +57,11 @@ enum Loupe {
 }
 
 /// One screen's overlay: the frozen picture, dimmed, with the selection, window highlight, hints and loupe.
+///
+/// Drawn in three layers so moving the mouse stays smooth: the frozen picture is the view's own layer and the
+/// dimming is a shape layer, both composited by the GPU and never redrawn; only a transparent sheet on top is
+/// drawn, and only around what changed (the loupe, the selection, a badge). Redrawing the whole full-screen
+/// picture on every mouse move used to cost 15 to 23 ms a frame on a Retina display.
 final class CaptureOverlayView: NSView {
     /// Drags smaller than this on either side count as a click.
     private static let minimumSelectionSide: CGFloat = 3
@@ -69,7 +74,10 @@ final class CaptureOverlayView: NSView {
     private let windows: [(window: PickableWindow, rect: CGRect)]
     private unowned let controller: CaptureController
     private lazy var bitmap = NSBitmapImageRep(cgImage: frozen.image)
-    private let frozenImage: NSImage
+    private let dimLayer = CAShapeLayer()
+    private let sheet = DrawingSheet()
+    /// What the sheet drew last time, so the next redraw can clear it.
+    private var lastDrawn: CGRect = .zero
 
     var mode: CaptureController.Mode {
         didSet {
@@ -77,7 +85,7 @@ final class CaptureOverlayView: NSView {
             selection = nil
             updateHover()
             window?.invalidateCursorRects(for: self)
-            needsDisplay = true
+            refresh(everything: true)
         }
     }
 
@@ -97,7 +105,6 @@ final class CaptureOverlayView: NSView {
         self.frozen = frozen
         self.controller = controller
         self.mode = mode
-        self.frozenImage = NSImage(cgImage: frozen.image, size: frozen.screen.frame.size)
 
         // Window frames are global with a top-left origin; this view's space starts at the screen's top-left corner.
         let screenFrame = frozen.screen.frame
@@ -108,6 +115,52 @@ final class CaptureOverlayView: NSView {
             return r.intersects(local) ? (w, r.intersection(local)) : nil
         }
         super.init(frame: local)
+
+        wantsLayer = true
+        dimLayer.fillRule = .evenOdd
+        dimLayer.frame = local
+        dimLayer.actions = ["path": NSNull(), "fillColor": NSNull()]
+        layer?.addSublayer(dimLayer)
+        sheet.frame = local
+        sheet.autoresizingMask = [.width, .height]
+        sheet.drawContent = { [unowned self] dirty in self.drawOverlay(dirty) }
+        addSubview(sheet)
+        updateDimming()
+    }
+
+    // The frozen picture is the layer's contents: set once, shown by the GPU.
+    override var wantsUpdateLayer: Bool { true }
+    override func updateLayer() {
+        layer?.contents = frozen.image
+        layer?.contentsGravity = .resize
+    }
+
+    /// Redraws only what changed since last time (or everything, after a mode switch).
+    private func refresh(everything: Bool = false) {
+        updateDimming()
+        let now = drawnArea()
+        sheet.setNeedsDisplay(everything ? bounds : lastDrawn.union(now))
+        lastDrawn = now
+    }
+
+    private func updateDimming() {
+        let path = CGMutablePath()
+        path.addRect(bounds)
+        if mode == .area, let sel = selection, sel.width > 0, sel.height > 0 { path.addRect(sel) }
+        dimLayer.path = path
+        dimLayer.fillColor = NSColor.black.withAlphaComponent(mode == .window ? Self.windowDimming : Self.areaDimming).cgColor
+    }
+
+    /// Everything the sheet will draw in its current state, with room for badges, shadows and outlines.
+    private func drawnArea() -> CGRect {
+        var area = CGRect(x: 0, y: bounds.height - Self.hintInset - 40, width: bounds.width, height: 60)   // the hint
+        if let h = hovered, mode == .window { area = area.union(h.rect.insetBy(dx: -8, dy: -8)) }
+        if let sel = selection { area = area.union(sel.insetBy(dx: -8, dy: -8)).union(CGRect(x: sel.minX - 200, y: sel.maxY, width: sel.width + 220, height: 48)) }
+        if let m = mouse, !spaceHeld {
+            let loupe = Loupe.frame(near: m, in: bounds.size)
+            area = area.union(loupe.insetBy(dx: -90, dy: -12).union(loupe.offsetBy(dx: 0, dy: Loupe.labelSpace)))
+        }
+        return area.intersection(bounds)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -132,17 +185,8 @@ final class CaptureOverlayView: NSView {
 
     // MARK: Drawing
 
-    override func draw(_ dirtyRect: NSRect) {
-        frozenImage.draw(in: bounds, from: .zero, operation: .copy, fraction: 1, respectFlipped: true, hints: nil)
-
-        let dim = NSBezierPath(rect: bounds)
-        if let sel = selection, sel.width > 0, sel.height > 0 {
-            dim.append(NSBezierPath(rect: sel))
-            dim.windingRule = .evenOdd
-        }
-        NSColor.black.withAlphaComponent(mode == .window ? Self.windowDimming : Self.areaDimming).setFill()
-        dim.fill()
-
+    /// Draws the highlight, selection, hint and loupe onto the transparent sheet.
+    private func drawOverlay(_ dirtyRect: NSRect) {
         if mode == .window, let h = hovered {
             drawWindowHighlight(h)
             drawHint(recording
@@ -302,12 +346,12 @@ final class CaptureOverlayView: NSView {
     override func mouseMoved(with event: NSEvent) {
         mouse = convert(event.locationInWindow, from: nil)
         updateHover()
-        needsDisplay = true
+        refresh()
     }
 
     override func mouseExited(with event: NSEvent) {
         mouse = nil
-        needsDisplay = true
+        refresh()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -323,7 +367,7 @@ final class CaptureOverlayView: NSView {
         dragStart = p
         lastDrag = p
         selection = CGRect(origin: p, size: .zero)
-        needsDisplay = true
+        refresh()
     }
 
     override func mouseDragged(with event: NSEvent) {
@@ -341,7 +385,7 @@ final class CaptureOverlayView: NSView {
             selection = CGRect(x: min(start.x, end.x), y: min(start.y, end.y), width: abs(end.x - start.x), height: abs(end.y - start.y))
         }
         lastDrag = p
-        needsDisplay = true
+        refresh()
     }
 
     override func mouseUp(with event: NSEvent) {
@@ -351,7 +395,7 @@ final class CaptureOverlayView: NSView {
         if sel.width < Self.minimumSelectionSide || sel.height < Self.minimumSelectionSide {
             // A plain click records the whole screen.
             if recording { controller.finishArea(frozen, pixelRect: pixelRect(bounds)); return }
-            needsDisplay = true
+            refresh()
             return
         }
         controller.finishArea(frozen, pixelRect: pixelRect(sel))
@@ -373,7 +417,7 @@ final class CaptureOverlayView: NSView {
             } else if !event.isARepeat {
                 controller.setMode(mode == .area ? .window : .area)
             }
-            needsDisplay = true
+            refresh()
         default:
             super.keyDown(with: event)
         }
@@ -382,7 +426,19 @@ final class CaptureOverlayView: NSView {
     override func keyUp(with event: NSEvent) {
         if event.keyCode == KeyCode.space {
             spaceHeld = false
-            needsDisplay = true
+            refresh()
         }
     }
+}
+
+/// The transparent layer the overlay draws its moving parts on. Clicks go through to the overlay underneath.
+private final class DrawingSheet: NSView {
+    /// Named differently from `draw(_:)` on purpose: calling a same-named closure from inside the override
+    /// resolves to the method itself and recurses forever.
+    var drawContent: (NSRect) -> Void = { _ in }
+
+    override var isFlipped: Bool { true }
+    override var isOpaque: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func draw(_ dirtyRect: NSRect) { drawContent(dirtyRect) }
 }

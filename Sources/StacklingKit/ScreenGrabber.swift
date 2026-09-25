@@ -99,13 +99,12 @@ enum ScreenGrabber {
         )
     }
 
-    /// Ordinary app windows on screen, front to back, other than Stackling's own.
+    /// Ordinary app windows on screen, front to back, Stackling's own library, editor and settings included.
+    /// (The stack and the capture tools float above normal windows, so they're never offered.)
     static func pickableWindows() -> [PickableWindow] {
-        let own = ProcessInfo.processInfo.processIdentifier
         let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         return info.compactMap { w in
             guard (w[kCGWindowLayer as String] as? Int) == 0,
-                  (w[kCGWindowOwnerPID as String] as? pid_t) != own,
                   (w[kCGWindowAlpha as String] as? Double ?? 1) > 0,
                   let id = w[kCGWindowNumber as String] as? CGWindowID,
                   let dict = w[kCGWindowBounds as String] as? NSDictionary,

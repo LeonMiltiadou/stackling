@@ -6,14 +6,27 @@ enum ScreenshotSaver {
     /// The camera shutter macOS plays for its own screenshots.
     static let shutterSoundPath = "/System/Library/Components/CoreAudio.component/Contents/SharedSupport/SystemSounds/system/Screen Capture.aif"
 
-    /// Saves `image` as a PNG named and tagged the way macOS does, plays the shutter and adds it to the stack.
-    static func save(_ image: CGImage, pixelScale: CGFloat) throws {
-        let url = CaptureFile.newURL(.screenshot, ext: "png")
-        try MarkupRenderer.writePNG(image, to: url, pixelScale: pixelScale)
-        CaptureFile.markAsCapture(url)
+    /// Plays the shutter straight away, writes `image` as a PNG named and tagged the way macOS does, then
+    /// adds it to the stack. The PNG is encoded off the main thread: a full Retina screen takes ~90 ms, and
+    /// the shutter shouldn't wait for it.
+    static func save(_ image: CGImage, pixelScale: CGFloat) {
         NSSound(contentsOfFile: shutterSoundPath, byReference: true)?.play()
-        Log.capture.info("saved file=\(url.lastPathComponent, privacy: .public) pixels=\(image.width)x\(image.height)")
-        ShotStore.shared.addCapture(url)
+        let url = CaptureFile.newURL(.screenshot, ext: "png")
+        let started = CFAbsoluteTimeGetCurrent()
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try ImageFile.writePNG(image, to: url, pixelScale: pixelScale)
+                    CaptureFile.markAsCapture(url)
+                }.value
+                let ms = Int((CFAbsoluteTimeGetCurrent() - started) * 1000)
+                Log.capture.info("saved file=\(url.lastPathComponent, privacy: .public) pixels=\(image.width)x\(image.height) ms=\(ms)")
+                ShotStore.shared.addCapture(url)
+            } catch {
+                Log.capture.error("save.failed error=\(error.localizedDescription, privacy: .public)")
+                NSSound.beep()
+            }
+        }
     }
 }
 

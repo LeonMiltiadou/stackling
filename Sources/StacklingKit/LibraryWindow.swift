@@ -167,6 +167,10 @@ struct LibraryView: View {
             }
             Spacer()
             if selection.isEmpty {
+                if ClaudeCode.isInstalled {
+                    Button { GroomWindowController.show() } label: { Label("Tidy", systemImage: "sparkles") }
+                        .help("Tidy with Claude: suggests a name and folder for each loose shot. Select shots first to tidy just those.")
+                }
                 Button { Importer.chooseFiles() } label: { Label("Add to Stack…", systemImage: "plus") }
                 Button { NSWorkspace.shared.open(Library.root) } label: { Label("Show in Finder", systemImage: "folder") }
             } else {

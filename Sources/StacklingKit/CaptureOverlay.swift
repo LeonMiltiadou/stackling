@@ -59,7 +59,7 @@ final class CaptureController {
                     Log.capture.error("fullscreen.no-screen screen=\(screen.displayID ?? 0)")
                     return
                 }
-                try ScreenshotSaver.save(shot.image, pixelScale: screen.backingScaleFactor)
+                ScreenshotSaver.save(shot.image, pixelScale: screen.backingScaleFactor)
             } catch {
                 report(error)
             }
@@ -121,11 +121,7 @@ final class CaptureController {
             Log.capture.error("area.crop-failed")
             return
         }
-        do {
-            try ScreenshotSaver.save(crop, pixelScale: frozen.screen.backingScaleFactor)
-        } catch {
-            report(error)
-        }
+        ScreenshotSaver.save(crop, pixelScale: frozen.screen.backingScaleFactor)
     }
 
     func finishWindow(_ window: PickableWindow, frozen: FrozenScreen, pixelRect: CGRect, withShadow: Bool) {
@@ -156,11 +152,7 @@ final class CaptureController {
                     Log.capture.error("window.shadow-failed")
                 }
             }
-            do {
-                try ScreenshotSaver.save(image, pixelScale: scale)
-            } catch {
-                report(error)
-            }
+            ScreenshotSaver.save(image, pixelScale: scale)
         }
     }
 

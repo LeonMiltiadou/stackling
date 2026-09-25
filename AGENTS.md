@@ -29,6 +29,8 @@ Baselines on an M-series MacBook Pro, September 2026:
 | Read text from a shot (Vision) | ~160–200 ms | background priority, 3 at a time (24% faster than one at a time; Vision mostly serialises) |
 | ⇧⌘4 freeze, cached displays / first | ~57 ms / ~165 ms | `ScreenGrabber.warmUp()` at launch moves the slow one out of the way |
 | New screenshot → on the stack | ~3 ms after the file is written | `ScreenshotWatcher.addWhenReady` checks the file is complete |
+| Area picker redraw per mouse move | ~1 ms (was 15–23 ms) | frozen image and dimming are GPU layers; only the changed area of the sheet is drawn |
+| Saving a capture | shutter at once; PNG off the main thread | full Retina screen ~90 ms, typical area ~11 ms |
 | Launch → ready | ~280 ms | |
 | Idle, empty stack | 0 wake-ups | the stack's poll timer only runs while it's on screen |
 

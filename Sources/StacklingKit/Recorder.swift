@@ -49,7 +49,7 @@ final class Recorder: ObservableObject {
             Log.recording.debug("start.ignored reason=already-recording")
             return
         }
-        // Key caps have to be on screen before we ask what's on screen, so the recording can include them.
+        // Key caps are shareable, unlike the rest of Stackling's chrome, so the recording picks them up.
         if AppSettings.showKeystrokes, case let .area(screen, rect) = target {
             keystrokes = KeystrokeOverlay.start(over: rect.appKitFrame(inTopLeftSpaceOf: screen))
         }
@@ -133,12 +133,9 @@ final class Recorder: ObservableObject {
             guard let id = screen.displayID, let display = content.displays.first(where: { $0.displayID == id }) else {
                 throw RecorderError.displayGone
             }
-            let me = ProcessInfo.processInfo.processIdentifier
-            let ours = content.applications.filter { $0.processID == me }
-            // Stackling's own windows stay out, except pinned screenshots and key caps, which are there to be seen.
-            var shown = Set(NSApp.windows.compactMap { $0 is PinWindow && $0.isVisible ? CGWindowID($0.windowNumber) : nil })
-            if let keystrokes { shown.insert(keystrokes.windowNumber) }
-            let filter = SCContentFilter(display: display, excludingApplications: ours, exceptingWindows: content.windows.filter { shown.contains($0.windowID) })
+            // The stack, the recording bar and the outline mark themselves as not shareable, so macOS leaves them
+            // out on its own. Everything else is recorded, Stackling's library and editor included.
+            let filter = SCContentFilter(display: display, excludingWindows: [])
             return RecordingSource(filter: filter, sourceRect: target.isWholeScreen ? nil : rect, screen: screen)
         }
     }
