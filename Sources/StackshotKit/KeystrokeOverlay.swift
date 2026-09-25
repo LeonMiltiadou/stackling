@@ -129,15 +129,3 @@ private struct KeystrokeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
-
-extension DefaultsKey {
-    static let showKeystrokes = "showKeystrokes"
-}
-
-extension AppSettings {
-    /// Show the shortcuts you press in area and full-screen recordings.
-    static var showKeystrokes: Bool {
-        get { UserDefaults.standard.bool(forKey: DefaultsKey.showKeystrokes) }
-        set { UserDefaults.standard.set(newValue, forKey: DefaultsKey.showKeystrokes) }
-    }
-}

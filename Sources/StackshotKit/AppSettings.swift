@@ -2,6 +2,7 @@ import Foundation
 
 /// Every UserDefaults key Stackshot uses, in one place.
 enum DefaultsKey {
+    static let showKeystrokes = "showKeystrokes"
     static let shrinkDelay = "fadeDelay"            // stored under its old name so existing choices carry over
     static let copyOnCapture = "copyOnCapture"
     static let tidyAfterDays = "tidyAfterDays"
@@ -66,6 +67,12 @@ enum AppSettings {
     static var keepNativeThumbnail: Bool {
         get { d.bool(forKey: DefaultsKey.keepNativeThumbnail) }
         set { d.set(newValue, forKey: DefaultsKey.keepNativeThumbnail) }
+    }
+
+    /// Show the shortcuts you press, as key caps, in area and full-screen recordings.
+    static var showKeystrokes: Bool {
+        get { d.bool(forKey: DefaultsKey.showKeystrokes) }
+        set { d.set(newValue, forKey: DefaultsKey.showKeystrokes) }
     }
 
     /// The welcome alert has been shown, so later launches stay quiet.
