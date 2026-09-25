@@ -150,9 +150,13 @@ private struct ExpandedStack: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Text("\(store.shots.count) screenshots")
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer()
+                HStack(spacing: 6) {
+                    Text("\(store.shots.count) screenshots")
+                        .font(.system(size: 13, weight: .semibold))
+                    Spacer()
+                }
+                .frame(maxHeight: .infinity)
+                .overlay(MoveGrip(store: store))
                 Button("Clear all") { store.clearAll() }
                     .buttonStyle(PillButtonStyle(compact: true))
                     .help("Dismiss everything (files stay on disk)")
@@ -307,6 +311,8 @@ private struct CardControls: View {
                 HStack {
                     RoundIcon(symbol: "xmark", help: "Dismiss (file stays on disk)") { store.dismiss(shot) }
                     Spacer()
+                    MoveControls(store: store)
+                    Spacer()
                     if !shot.isVideo {
                         RoundIcon(symbol: "pin", help: "Pin to screen: floats above everything") { Actions.pin(shot) }
                     }
@@ -375,6 +381,40 @@ private struct MoreMenu: View {
 }
 
 // MARK: - Controls
+
+/// Drag the grip to move the whole stack out of the way. The corner button puts it back.
+private struct MoveControls: View {
+    @ObservedObject var store: ShotStore
+    @State private var gripHover = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            RoundGlyph(symbol: "arrow.up.and.down.and.arrow.left.and.right", highlighted: gripHover)
+                .overlay(MoveGrip(store: store) { gripHover = $0 })
+            if store.customOrigin != nil {
+                RoundIcon(symbol: "arrow.down.left", help: "Put the stack back in the corner") {
+                    store.customOrigin = nil
+                }
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: store.customOrigin != nil)
+    }
+}
+
+private struct RoundGlyph: View {
+    let symbol: String
+    var highlighted = false
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: 26, height: 26)
+            .background(Circle().fill(Color.black.opacity(highlighted ? 0.75 : 0.5)))
+            .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+    }
+}
 
 private struct RoundIcon: View {
     let symbol: String
