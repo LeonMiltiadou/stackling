@@ -30,6 +30,8 @@ final class CaptureController {
         isCapturing = true
         self.purpose = purpose
         Log.capture.info("start mode=\(mode.rawValue, privacy: .public) purpose=\(purpose.rawValue, privacy: .public)")
+        ActivityLog.record(.captureStart, ["mode": mode.rawValue, "purpose": purpose.rawValue])
+        startedAt = Date()
         rememberFrontApp()
         Task {
             do {
@@ -51,6 +53,7 @@ final class CaptureController {
         isCapturing = true
         let screen = NSScreen.underMouse
         Log.capture.info("start mode=fullscreen screen=\(screen.displayID ?? 0)")
+        ActivityLog.record(.captureStart, ["mode": "fullscreen", "purpose": "screenshot"])
         Task {
             defer { isCapturing = false }
             do {
@@ -59,6 +62,7 @@ final class CaptureController {
                     Log.capture.error("fullscreen.no-screen screen=\(screen.displayID ?? 0)")
                     return
                 }
+                ActivityLog.record(.captureDone, ["mode": "fullscreen", "purpose": "screenshot", "ms": 0])
                 ScreenshotSaver.save(shot.image, pixelScale: screen.backingScaleFactor)
             } catch {
                 report(error)
@@ -102,14 +106,25 @@ final class CaptureController {
         }
     }
 
+    /// When the current capture began, to note how long choosing took.
+    private var startedAt: Date?
+
+    private func noteChosen(_ mode: String) {
+        let ms = startedAt.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 0
+        ActivityLog.record(.captureDone, ["mode": mode, "purpose": purpose.rawValue, "ms": ms])
+    }
+
     func cancel() {
         Log.capture.info("cancel")
+        ActivityLog.record(.captureCancel, ["purpose": purpose.rawValue,
+                                            "ms": startedAt.map { Int(Date().timeIntervalSince($0) * 1000) } ?? 0])
         finish()
     }
 
     func finishArea(_ frozen: FrozenScreen, pixelRect: CGRect) {
         finish()
         Log.capture.info("area.chosen size=\(Int(pixelRect.width))x\(Int(pixelRect.height)) screen=\(frozen.screen.displayID ?? 0)")
+        noteChosen("area")
         if purpose == .recording {
             let scale = frozen.screen.backingScaleFactor
             let points = CGRect(x: pixelRect.minX / scale, y: pixelRect.minY / scale,
@@ -127,6 +142,7 @@ final class CaptureController {
     func finishWindow(_ window: PickableWindow, frozen: FrozenScreen, pixelRect: CGRect, withShadow: Bool) {
         finish()
         Log.capture.info("window.chosen app=\(window.app, privacy: .public) size=\(Int(pixelRect.width))x\(Int(pixelRect.height)) shadow=\(withShadow)")
+        noteChosen("window")
         if purpose == .recording {
             Recorder.shared.start(.window(window.id))
             return

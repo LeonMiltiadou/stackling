@@ -81,6 +81,7 @@ enum Library {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             LibraryIndex.shared.scheduleRescan()
             Log.library.info("folder.new name=\(folder.lastPathComponent, privacy: .public)")
+            ActivityLog.record(.folderNew)
             return folder
         } catch {
             NSAlert(error: error).runModal()
@@ -99,6 +100,7 @@ enum Library {
             ShotStore.shared.relocateFolder(from: folder, to: dest)
             LibraryIndex.shared.scheduleRescan()
             Log.library.info("folder.rename")
+            ActivityLog.record(.folderRename)
             return dest
         } catch {
             NSAlert(error: error).runModal()
@@ -120,6 +122,7 @@ enum Library {
             try FileManager.default.trashItem(at: folder, resultingItemURL: nil)
             LibraryIndex.shared.scheduleRescan()
             Log.library.info("folder.trash count=\(count)")
+            ActivityLog.record(.folderTrash, ["count": count])
             return true
         } catch {
             NSAlert(error: error).runModal()

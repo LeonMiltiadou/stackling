@@ -146,6 +146,7 @@ struct LibraryGrid: NSViewRepresentable {
             // Any finished drag counts as a use. Drops onto a sidebar folder file the shot, and filed shots are never cleared anyway.
             if !operation.isEmpty { dragged.forEach { Usage.used($0, how: "library-drag") } }
             Log.library.info("library.drag count=\(self.dragged.count) operation=\(operation.rawValue)")
+            if !operation.isEmpty { ActivityLog.record(.libraryDrag, ["count": dragged.count]) }
             dragged = []
         }
 
@@ -243,6 +244,7 @@ final class LibraryCollectionView: NSCollectionView {
 
     private func toggleQuickLook() {
         guard let panel = QLPreviewPanel.shared() else { return }
+        if !panel.isVisible { ActivityLog.record(.libraryQuickLook) }
         if panel.isVisible { panel.orderOut(nil) } else { panel.makeKeyAndOrderFront(nil) }
     }
 

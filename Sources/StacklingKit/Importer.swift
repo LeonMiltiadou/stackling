@@ -24,6 +24,7 @@ enum Importer {
             added += 1
         }
         Log.actions.info("import source=\(source, privacy: .public) added=\(added) skipped=\(skipped)")
+        ActivityLog.record(source == "library" ? .libraryAddToStack : .imported, ["source": source, "count": added])
         if skipped > 0 && added == 0 { NSSound.beep() }
         return added
     }

@@ -99,6 +99,7 @@ final class EditorModel: ObservableObject {
 
     func undo() {
         guard let last = undoStack.popLast() else { return }
+        ActivityLog.record(.editorUndo)
         redoStack.append(markup)
         markup = last
         selection = nil

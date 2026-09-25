@@ -17,6 +17,15 @@ swift scripts/windows.swift     # every Stackling window: frame, on screen, alph
 A change is done when it builds with no new warnings, `swift test` passes, and you have either a
 test covering the logic or log output / an off-screen render showing it working.
 
+## Activity log
+
+`ActivityLog.record(.event, details)` writes one JSON line per user action to
+`~/Library/Application Support/io.github.leonmiltiadou.stackling/activity.jsonl`, only while the
+setting is on. `ActivityLog.via("key"|"menu"|"drag"|…) { … }` tags how an action started (menus, card
+keys and hot keys already do). Add new features to `ActivityLog.Event` and record them; never log file
+names, window titles or shot contents. `scripts/activity.sh [days]` summarises it, including features
+never used. Tests set `ActivityLog.testURL`.
+
 ## Performance
 
 `scripts/bench.sh` times the hot paths on a made-up 2,000-shot library (nothing appears on screen).

@@ -19,6 +19,7 @@ final class LibraryWindowController: NSWindowController, NSWindowDelegate {
         // Opening the library is nearly always to find something: the cursor starts in search.
         NotificationCenter.default.post(name: .libraryFocusSearch, object: nil)
         Log.library.info("library.open items=\(LibraryIndex.shared.items.count)")
+        ActivityLog.record(.libraryOpen, ["items": LibraryIndex.shared.items.count])
     }
 
     private init() {
@@ -62,6 +63,20 @@ enum LibrarySection: Hashable {
         case .leavingSoon: "Leaving Soon"
         case let .folder(name): name
         case .archive: "Archive"
+        }
+    }
+
+    /// The kind of section, for the activity log: folder names are yours, so they're never written down.
+    var activityName: String {
+        switch self {
+        case .recent: "recent"
+        case .all: "all"
+        case .screenshots: "screenshots"
+        case .recordings: "recordings"
+        case .gifs: "gifs"
+        case .leavingSoon: "leaving-soon"
+        case .folder: "folder"
+        case .archive: "archive"
         }
     }
 
@@ -124,7 +139,15 @@ struct LibraryView: View {
                 content
             }
         }
-        .onChange(of: section) { selection.removeAll() }
+        .onChange(of: section) {
+            selection.removeAll()
+            ActivityLog.record(.librarySection, ["section": section.activityName])
+        }
+        .task(id: query) {
+            // Noted once you pause typing: how many words and how many hits, never the words themselves.
+            guard !query.isEmpty, (try? await Task.sleep(for: .seconds(1.5))) != nil else { return }
+            ActivityLog.record(.librarySearch, ["words": SearchIndex.words(in: query).count, "results": shown.count])
+        }
         .dropDestination(for: URL.self) { urls, _ in
             // Shots dragged within the library aren't new; only things from outside get added.
             let outside = urls.filter { !Library.contains($0) }
@@ -148,7 +171,9 @@ struct LibraryView: View {
                 ForEach(index.folders, id: \.self) { name in
                     sidebarRow(.folder(name))
                         .dropDestination(for: URL.self) { urls, _ in
-                            LibraryActions.file(urls.filter { Library.contains($0) }, into: Library.root.appendingPathComponent(name, isDirectory: true)) > 0
+                            ActivityLog.via("drag") {
+                                LibraryActions.file(urls.filter { Library.contains($0) }, into: Library.root.appendingPathComponent(name, isDirectory: true)) > 0
+                            }
                         }
                         .contextMenu { FolderMenu(name: name) { if section == .folder(name) { section = .recent } } }
                 }
@@ -362,6 +387,7 @@ enum Thumbnails {
 enum LibraryActions {
     static func open(_ item: LibraryIndex.Item) {
         Log.library.info("library.item-open kind=\(item.kind.rawValue, privacy: .public)")
+        ActivityLog.record(.libraryOpenItem, ["kind": item.kind.rawValue])
         Actions.edit(Shot(url: item.url, created: item.created))
     }
 
@@ -379,6 +405,7 @@ enum LibraryActions {
         }
         items.forEach { Usage.used($0.url, how: "library-copy") }
         Log.actions.info("library.copy count=\(items.count)")
+        ActivityLog.record(.libraryCopy, ["count": items.count])
     }
 
     /// Moves shots to the Trash. With an undo manager, ⌘Z puts them back where they were, edits and all.
@@ -398,6 +425,7 @@ enum LibraryActions {
         urls.forEach { Markup.deleteSidecar(for: $0) }
         ShotStore.shared.forget(urls)
         Log.library.info("library.trash count=\(items.count)")
+        ActivityLog.record(.libraryTrash, ["count": items.count])
     }
 
     private static func putBack(_ trashed: [URL: URL], edits: [URL: Data]) {
@@ -413,6 +441,7 @@ enum LibraryActions {
         }
         LibraryIndex.shared.scheduleRescan()
         Log.library.info("library.put-back count=\(restored)")
+        ActivityLog.record(.libraryUndo, ["count": restored])
     }
 
     static func file(_ items: [LibraryIndex.Item], into folder: URL) {
@@ -433,11 +462,13 @@ enum LibraryActions {
         }
         ShotStore.shared.relocate(moves)
         LibraryIndex.shared.scheduleRescan()
+        ActivityLog.record(.libraryFile, ["count": moves.count])
         Log.library.info("library.file count=\(moves.count) folder=\(folder.lastPathComponent, privacy: .public)")
         return moves.count
     }
 
     static func setKept(_ items: [LibraryIndex.Item], _ keep: Bool) {
+        ActivityLog.record(.libraryKeep, ["count": items.count, "on": keep])
         items.forEach { Usage.setKeep($0.url, keep) }
         ShotStore.shared.shots.filter { shot in items.contains { $0.url == shot.url } }.forEach { $0.setKept(keep) }
         LibraryIndex.shared.scheduleRescan()
@@ -451,6 +482,7 @@ enum LibraryActions {
             ShotStore.shared.relocate([item.url.standardizedFileURL: dest])
             LibraryIndex.shared.scheduleRescan()
             Log.library.info("library.rename")
+            ActivityLog.record(.libraryRename)
         } catch {
             NSAlert(error: error).runModal()
         }

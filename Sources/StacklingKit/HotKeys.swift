@@ -57,7 +57,8 @@ final class HotKeys {
                               nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
             let key = id.id
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { HotKeys.shared.handlers[key]?() }
+                // Card keys (ids from 200) act on the hovered card; the rest are the global capture shortcuts.
+                MainActor.assumeIsolated { ActivityLog.via(key >= 200 ? "key" : "hotkey") { HotKeys.shared.handlers[key]?() } }
             }
             return noErr
         }, 1, &spec, nil, nil)

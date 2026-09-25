@@ -30,6 +30,7 @@ final class ShotStore: ObservableObject {
             } else {
                 Log.stack.info("origin.reset")
             }
+            ActivityLog.record(.moveStack, ["back-to-corner": customOrigin == nil])
         }
     }
 
@@ -45,6 +46,7 @@ final class ShotStore: ObservableObject {
         }
         let source = CaptureSource.frontmost()
         Usage.noteSource(source, for: url)
+        ActivityLog.record(.shotNew, Actions.activityDetails(for: shot).merging(["app": source?.app ?? ""]) { a, _ in a })
         AutoFiler.consider(shot, source: source)
     }
 
@@ -105,6 +107,12 @@ final class ShotStore: ObservableObject {
         Log.stack.info("dismiss file=\(shot.url.lastPathComponent, privacy: .public) count=\(self.shots.count) recent=\(self.recent.count)")
     }
 
+    /// You chose to dismiss it (✕, Esc, the menu), as opposed to it leaving after a copy or drag.
+    func dismissByHand(_ shot: Shot) {
+        ActivityLog.record(.dismiss, Actions.activityDetails(for: shot))
+        dismiss(shot)
+    }
+
     /// Dismisses after a short confirmation message, unless ⌥ is held.
     func finish(_ shot: Shot, message: String) {
         shot.flashDone(message)
@@ -116,6 +124,7 @@ final class ShotStore: ObservableObject {
     }
 
     func trash(_ shot: Shot) {
+        ActivityLog.record(.trash, Actions.activityDetails(for: shot))
         let name = shot.url.lastPathComponent
         NSWorkspace.shared.recycle([shot.url]) { _, error in
             if let error {
@@ -131,12 +140,14 @@ final class ShotStore: ObservableObject {
     /// `reason` says what shrank or opened the stack, for the log.
     func setMinimized(_ on: Bool, reason: String) {
         guard on != minimized else { return }
+        if !on, reason == "click" { ActivityLog.record(.unshrink) }
         withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) { minimized = on }
         Log.stack.info("\(on ? "minimized" : "restored", privacy: .public) reason=\(reason, privacy: .public)")
     }
 
     func clearAll() {
         let count = shots.count
+        ActivityLog.record(.clear, ["count": count])
         for shot in shots { shot.toast = nil }
         remember(shots)
         removeFromStack { _ in true }
@@ -144,6 +155,7 @@ final class ShotStore: ObservableObject {
     }
 
     func restore(_ shot: Shot) {
+        ActivityLog.record(.restore)
         recent.removeAll { $0 === shot }
         guard shot.exists else {
             Log.stack.notice("restore.skipped file=\(shot.url.lastPathComponent, privacy: .public) reason=missing")
@@ -155,6 +167,7 @@ final class ShotStore: ObservableObject {
 
     func restoreAllRecent() {
         let items = recent.filter(\.exists)
+        ActivityLog.record(.restore, ["count": items.count])
         recent.removeAll()
         insertOnTop(items)
         Log.stack.info("restore-all count=\(items.count)")
@@ -176,6 +189,7 @@ final class ShotStore: ObservableObject {
     func toggleExpanded() {
         withAnimation(spring) { expanded = shots.count > 1 ? !expanded : false }
         Log.stack.info("expanded=\(self.expanded)")
+        ActivityLog.record(expanded ? .expand : .collapse, ["count": shots.count])
     }
 
     // MARK: List updates

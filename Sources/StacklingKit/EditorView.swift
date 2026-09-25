@@ -202,6 +202,10 @@ private struct SecretsButton: View {
         working = true
         let outcome = await model.redactSecrets()
         working = false
+        switch outcome {
+        case .unreadable: ActivityLog.record(.hideSecrets, ["result": "unreadable"])
+        case let .done(hidden, spared): ActivityLog.record(.hideSecrets, ["hidden": hidden, "left-as-examples": spared])
+        }
         result = outcome.message
         try? await Task.sleep(for: .seconds(2.5))
         result = nil

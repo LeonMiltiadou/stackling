@@ -6,6 +6,8 @@ enum DefaultsKey {
     static let jevCheckSecrets = "jev.checkSecrets"
     static let jevSpotJunk = "jev.spotJunk"
     static let jevDescribePictures = "jev.describePictures"
+    /// Keep a private, on-this-Mac diary of what you use (see `ActivityLog`).
+    static let activityLog = "activityLog"
     static let migratedFromStackshot = "rename.fromStackshot"
     static let claudeModel = "claudeModel"
     static let showKeystrokes = "showKeystrokes"

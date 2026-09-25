@@ -1,4 +1,5 @@
 import AppKit
+import os
 
 /// Naming and tagging capture files, and where Stackling keeps its own working files.
 enum CaptureFile {
@@ -57,8 +58,16 @@ enum CaptureFile {
         return namePrefixes.contains { name.hasPrefix($0) }
     }
 
+    /// Captures Stackling wrote itself this session, so the folder watcher can tell them from the Mac's own.
+    /// Written from background saves and read on the main thread, hence the lock.
+    private static let madeHere = OSAllocatedUnfairLock(initialState: Set<String>())
+
+    static func noteMadeHere(_ url: URL) { _ = madeHere.withLock { $0.insert(url.standardizedFileURL.path) } }
+    static func wasMadeHere(_ url: URL) -> Bool { madeHere.withLock { $0.contains(url.standardizedFileURL.path) } }
+
     /// Tags a file Stackling made the way macOS tags its own captures, so tidying and Spotlight treat it the same.
     static func markAsCapture(_ url: URL) {
+        noteMadeHere(url)
         let result = tagValue.withUnsafeBytes { setxattr(url.path, tagName, $0.baseAddress, tagValue.count, 0, 0) }
         if result != 0 {
             Log.library.error("tag.failed file=\(url.lastPathComponent, privacy: .public) errno=\(errno)")

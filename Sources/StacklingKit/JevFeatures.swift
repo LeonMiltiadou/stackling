@@ -40,7 +40,10 @@ enum AutoFiler {
         let text = await SearchIndex.readText(at: shot.url)
         if !text.isEmpty { SearchIndex.shared.remember(text, for: shot.url) }
         let look = await ShotLook.measure(shot.url)
-        if text.isEmpty, look?.isNearlyEmpty ?? true { return Log.library.info("autofile.skipped reason=nearly-empty") }
+        if text.isEmpty, look?.isNearlyEmpty ?? true {
+            ActivityLog.record(.autoFile, ["outcome": "skipped-nearly-empty"])
+            return Log.library.info("autofile.skipped reason=nearly-empty")
+        }
 
         let candidates = candidates(in: folders)
         let lookAlikes = await LookAlikes.shared.closest(to: shot.url, text: text, among: candidates)
@@ -57,14 +60,19 @@ enum AutoFiler {
             }
             let ms = Int(Date().timeIntervalSince(started) * 1000)
             guard let folder = decide(answer, folders: folders) else {
+                ActivityLog.record(.autoFile, ["outcome": "kept", "confidence": ((answer?.confidence ?? 0) * 100).rounded() / 100,
+                                               "described": described, "ms": ms])
                 Log.library.info("autofile.kept guess=\(answer?.choice ?? "-", privacy: .public) confidence=\(answer?.confidence ?? 0) described=\(described) ms=\(ms)")
                 return
             }
             guard shot.exists, Library.file(shot, into: folder) else { return }
             shot.flashDone("Filed in \(folder.lastPathComponent)")
+            ActivityLog.record(.autoFile, ["outcome": "filed", "confidence": ((answer?.confidence ?? 0) * 100).rounded() / 100,
+                                           "described": described, "lookalikes": lookAlikes.count, "ms": ms])
             Log.library.info("autofile.filed folder=\(folder.lastPathComponent, privacy: .public) confidence=\(answer?.confidence ?? 0) described=\(described) lookalikes=\(lookAlikes.count) ms=\(ms)")
         } catch {
             Log.library.error("autofile.failed error=\(error.localizedDescription, privacy: .public)")
+            ActivityLog.record(.autoFile, ["outcome": "failed"])
         }
     }
 

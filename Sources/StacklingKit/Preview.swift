@@ -112,6 +112,7 @@ final class PreviewModel: ObservableObject {
 
     func switchTo(_ mode: Mode) {
         self.mode = mode
+        if mode == .gif { ActivityLog.record(.gifView) }
         if mode == .gif {
             player?.pause()
             makeGIFIfNeeded()
@@ -182,6 +183,7 @@ final class PreviewModel: ObservableObject {
         guard start > .zero || end < duration else { player?.play(); return }
 
         say("Trimming…", sticky: true)
+        ActivityLog.record(.trim, ["seconds-cut": Int((duration - (end - start)).seconds)])
         let original = shot.url
         Log.editor.info("trim start=\(start.seconds, format: .fixed(precision: 2)) end=\(end.seconds, format: .fixed(precision: 2)) of=\(duration.seconds, format: .fixed(precision: 2)) file=\(original.lastPathComponent, privacy: .public)")
         Task {
@@ -277,20 +279,20 @@ struct PreviewView: View {
             } else if model.shot.isVideo {
                 Button("Save GIF") {
                     model.say("Saving GIF…", sticky: true)
-                    Actions.saveGIF(model.shot) { saved in
+                    ActivityLog.via("preview") { Actions.saveGIF(model.shot) { saved in
                         model.say(saved ? "GIF saved next to the video and added to the stack" : "Couldn't save the GIF")
-                    }
+                    } }
                 }
                 .disabled(model.gif == nil)
             }
 
             Button(model.mode == .video ? "Copy Video" : "Copy GIF") {
                 if model.mode == .gif && model.shot.isVideo {
-                    Actions.copyGIF(model.shot)
+                    ActivityLog.via("preview") { Actions.copyGIF(model.shot) }
                     // Too big for GitHub: stay open, so trimming it down is one click away.
                     if model.gifTooBig { return model.say("Copied, but it's over GitHub's 10 MB limit. Trim it and copy again.", sticky: true) }
                 } else {
-                    Actions.copy(model.shot)
+                    ActivityLog.via("preview") { Actions.copy(model.shot) }
                 }
                 close()
             }

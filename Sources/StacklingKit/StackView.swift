@@ -261,7 +261,11 @@ private struct AllShotsMenu: View {
                     if let folder = Library.askForNewFolder() { Actions.fileAll(store.shots, into: folder) }
                 }
             }
-            Button("Keep All") { store.shots.forEach { $0.setKept(true) }; LibraryIndex.shared.scheduleRescan() }
+            Button("Keep All") {
+                ActivityLog.record(.keepAll, ["count": store.shots.count])
+                store.shots.forEach { $0.setKept(true) }
+                LibraryIndex.shared.scheduleRescan()
+            }
             Divider()
             Button("Clear All") { store.clearAll() }
         } label: {

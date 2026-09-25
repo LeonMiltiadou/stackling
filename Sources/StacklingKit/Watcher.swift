@@ -148,6 +148,10 @@ final class ScreenshotWatcher {
     private func addWhenReady(_ url: URL, created: Date, attempt: Int = 0) {
         guard !CaptureFile.isComplete(url), attempt < Self.readyAttempts else {
             if attempt > 0 { Log.library.debug("capture.ready file=\(url.lastPathComponent, privacy: .public) retries=\(attempt)") }
+            // Taken with the Mac's own shortcuts (⇧⌘3, ⇧⌘5…): Stackling's own captures arrive another way.
+            if !CaptureFile.wasMadeHere(url) {
+                ActivityLog.record(.nativeCapture, ["kind": LibraryIndex.kind(of: url)?.rawValue ?? "other"])
+            }
             store.addCapture(url, created: created)
             return
         }

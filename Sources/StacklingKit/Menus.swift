@@ -236,7 +236,7 @@ final class ClosureMenuItem: NSMenuItem {
 
     required init(coder: NSCoder) { fatalError() }
 
-    @objc private func fire() { handler() }
+    @objc private func fire() { ActivityLog.via("menu") { handler() } }
 }
 
 /// The first-launch introduction, also under "How It Works…" in the menu bar menu.

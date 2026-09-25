@@ -34,7 +34,7 @@ enum CardKeys {
     static let keep = Binding(id: 208, keyCode: kVK_ANSI_K, modifiers: 0, label: "K", summary: "Keep it (never cleared out)",
                               applies: { _ in true }, action: Actions.toggleKeep)
     static let dismiss = Binding(id: 202, keyCode: kVK_Escape, modifiers: 0, label: "Esc", summary: "Dismiss",
-                                 applies: { _ in true }, action: { ShotStore.shared.dismiss($0) })
+                                 applies: { _ in true }, action: { ShotStore.shared.dismissByHand($0) })
     static let trash = Binding(id: 201, keyCode: kVK_Delete, modifiers: cmdKey, label: "⌘⌫", summary: "Move to Trash",
                                applies: { _ in true }, action: { ShotStore.shared.trash($0) })
 

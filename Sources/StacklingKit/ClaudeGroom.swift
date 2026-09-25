@@ -11,6 +11,7 @@ final class GroomWindowController: NSWindowController, NSWindowDelegate {
 
     /// Tidies the loose screenshots in the save folder, or just `files` when given (a selection in the library).
     static func show(files: [URL]? = nil) {
+        ActivityLog.record(.tidyOpen, ["shots": files?.count ?? -1])
         if let shared {
             guard files != nil else {
                 NSApp.activate()
@@ -201,6 +202,7 @@ final class GroomModel: ObservableObject {
         ShotStore.shared.relocate(moves)
         let folders = Set(moves.values.map { $0.deletingLastPathComponent() }).count
         Log.library.info("groom.applied moved=\(moves.count) folders=\(folders) failed=\(failures)")
+        ActivityLog.record(.tidyApply, ["filed": moves.count, "trashed": binned.count, "skipped": entries.filter { !$0.include }.count])
         var summary = "Filed \(moves.count) shot\(moves.count == 1 ? "" : "s") into \(folders) folder\(folders == 1 ? "" : "s")."
         if !binned.isEmpty { summary += " Moved \(binned.count) to the Trash." }
         if failures > 0 { summary += " \(failures) couldn't be moved; see the log." }

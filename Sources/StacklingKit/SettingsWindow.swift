@@ -97,6 +97,11 @@ final class SettingsModel: ObservableObject {
 
     var canDescribePictures: Bool { jevConnected && PictureDescriber.isAvailable }
 
+    var activityLog: Bool {
+        get { UserDefaults.standard.bool(forKey: DefaultsKey.activityLog) }
+        set { UserDefaults.standard.set(newValue, forKey: DefaultsKey.activityLog); changed("activityLog", newValue) }
+    }
+
     var jevSpotJunk: Bool {
         get { AppSettings.jevSpotJunk }
         set { AppSettings.jevSpotJunk = newValue; changed("jevSpotJunk", newValue) }
@@ -174,6 +179,8 @@ final class SettingsModel: ObservableObject {
     /// Tells the app to act on a changed setting, and logs what changed.
     private func changed(_ name: String, _ value: Any) {
         Log.app.info("setting.changed name=\(name, privacy: .public) value=\(String(describing: value), privacy: .public)")
+        // The key's name only: values can be paths or keys.
+        ActivityLog.record(.settingChanged, ["name": name])
         objectWillChange.send()
         NotificationCenter.default.post(name: .stacklingSettingsChanged, object: nil)
     }
@@ -216,6 +223,14 @@ private struct SettingsView: View {
                 Text("Recording")
             } footer: {
                 Text("Shortcuts and keys like ⇧⌘P, ⎋ and ↩ appear as key caps at the bottom of area and full-screen recordings. Plain typing is never shown. Needs the Accessibility permission.")
+            }
+
+            Section {
+                Toggle("Keep an activity log on this Mac", isOn: Binding(get: { model.activityLog }, set: { model.activityLog = $0 }))
+                Button("Show Activity Log in Finder") { NSWorkspace.shared.activateFileViewerSelecting([ActivityLog.fileURL]) }
+                    .disabled(!FileManager.default.fileExists(atPath: ActivityLog.fileURL.path))
+            } footer: {
+                Text("Notes which features you use and how (a key, a button, a menu), and which app each shot was taken in, so Stackling can be tuned to how you really work. Never file names, window titles or anything in your shots, and it never leaves this Mac.")
             }
 
             Section {

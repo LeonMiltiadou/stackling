@@ -12,9 +12,11 @@ final class PinWindow: NSPanel {
     /// Pins show on every desktop; this clears them all at once (menu bar › Close All Pins).
     static func closeAll() {
         Log.actions.info("pin.close-all count=\(pins.count)")
+        ActivityLog.record(.pinCloseAll, ["count": pins.count])
         pins.forEach { $0.close() }
     }
     private let file: URL?
+    private let opened = Date()
 
     /// A new pin starts at most this fraction of the screen's width and height.
     private static let initialScreenFraction: CGFloat = 0.5
@@ -84,6 +86,7 @@ final class PinWindow: NSPanel {
         super.close()
         PinWindow.pins.removeAll { $0 === self }
         Log.actions.info("pin.close pins=\(PinWindow.pins.count)")
+        ActivityLog.record(.pinClose, ["seconds-open": Int(Date().timeIntervalSince(opened))])
     }
 
     /// Scroll up to grow, down to shrink, around the window's centre.
@@ -111,6 +114,7 @@ final class PinWindow: NSPanel {
         if let file {
             Clipboard.write(shot: shot ?? Shot(url: file))
             Usage.used(file, how: "pin-copy")
+            ActivityLog.record(.pinCopy)
         } else {
             Clipboard.write(image: image)
         }

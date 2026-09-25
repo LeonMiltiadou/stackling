@@ -58,7 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and the Dock icon's right-click menu has every capture option.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         Log.app.info("dock.clicked action=open-library")
-        LibraryWindowController.show()
+        ActivityLog.via("dock") { LibraryWindowController.show() }
         return false
     }
 
@@ -171,6 +171,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NativeShortcuts.setAreaShortcut(enabled: true)
         }
         Log.app.notice("quit")
+        ActivityLog.record(.quit)
+        ActivityLog.flush()
     }
 
     // MARK: Shortcuts

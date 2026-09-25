@@ -103,6 +103,8 @@ enum Cleanup {
         }
         guard !due.isEmpty else { return Log.library.debug("cleanup count=0") }
         let action = AppSettings.tidyAction
+        // Counted before they move: once in the Trash their notes can't be read here.
+        let used = due.filter { Usage.read($0.url).uses > 0 }.count
         var done = 0
         for item in due {
             do {
@@ -115,6 +117,7 @@ enum Cleanup {
         store.forget(due.map(\.url))
         LibraryIndex.shared.scheduleRescan()
         Log.library.notice("cleanup count=\(done) failed=\(due.count - done) action=\(action.rawValue, privacy: .public)")
+        ActivityLog.record(.cleanup, ["count": done, "action": action.rawValue, "used": used])
     }
 
     /// The folder clean-up works in: the library's top level, and only while new shots save there.

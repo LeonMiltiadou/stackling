@@ -33,7 +33,13 @@ struct ShotCard: View {
                 shot: shot,
                 onClick: { Actions.edit(shot) },
                 onDropped: { op in
-                    if op.contains(.delete) { store.trash(shot) } else { Usage.used(shot.url, how: "drag"); store.dismiss(shot) }
+                    if op.contains(.delete) {
+                        ActivityLog.via("drag") { store.trash(shot) }
+                    } else {
+                        Usage.used(shot.url, how: "drag")
+                        ActivityLog.record(.drag, Actions.activityDetails(for: shot))
+                        store.dismiss(shot)
+                    }
                 },
                 onHover: { h in
                     withAnimation(.easeOut(duration: 0.14)) { hovering = h }
@@ -144,7 +150,7 @@ private struct CardControls: View {
 
             VStack {
                 HStack {
-                    RoundIcon(symbol: "xmark", help: "Dismiss (\(CardKeys.dismiss.label)). The file stays on disk") { store.dismiss(shot) }
+                    RoundIcon(symbol: "xmark", help: "Dismiss (\(CardKeys.dismiss.label)). The file stays on disk") { store.dismissByHand(shot) }
                     Spacer()
                     MoveControls(store: store)
                     Spacer()
@@ -198,7 +204,7 @@ private struct MoreMenu: View {
                     Button(folder.lastPathComponent) { Actions.file(shot, into: folder) }
                 }
                 if !folders.isEmpty { Divider() }
-                Button("New Folder…") { Actions.fileIntoNewFolder(shot) }
+                MenuItem("New Folder…") { Actions.fileIntoNewFolder(shot) }
             }
             if ClaudeCode.isInstalled {
                 Button {
@@ -207,21 +213,21 @@ private struct MoreMenu: View {
                     Label("Name with Claude", systemImage: "sparkles")
                 }
             }
-            Button("Move to…") { Actions.moveTo(shot) }
-            Button(shot.kept ? "Don't Keep" : "Keep (Never Clear Out)") { Actions.toggleKeep(shot) }
-            Button("Show in Finder") { Actions.reveal(shot) }
+            MenuItem("Move to…") { Actions.moveTo(shot) }
+            MenuItem(shot.kept ? "Don't Keep" : "Keep (Never Clear Out)") { Actions.toggleKeep(shot) }
+            MenuItem("Show in Finder") { Actions.reveal(shot) }
             if shot.isVideo {
-                Button("Open in QuickTime") { Actions.openInQuickTime(shot) }
-                Button("Copy as GIF") { Actions.copyGIF(shot) }
-                Button("Save as GIF") { Actions.saveGIF(shot) }
+                MenuItem("Open in QuickTime") { Actions.openInQuickTime(shot) }
+                MenuItem("Copy as GIF") { Actions.copyGIF(shot) }
+                MenuItem("Save as GIF") { Actions.saveGIF(shot) }
             } else {
-                Button("Open in Preview") { Actions.openInPreview(shot) }
+                MenuItem("Open in Preview") { Actions.openInPreview(shot) }
             }
             if shot.isStill {
-                Button("Pin to Screen") { Actions.pin(shot) }
+                MenuItem("Pin to Screen") { Actions.pin(shot) }
             }
             if shot.hasMarkup {
-                Button("Save Edits Into Image") { Actions.flatten(shot) }
+                MenuItem("Save Edits Into Image") { Actions.flatten(shot) }
             }
             Menu("Share") {
                 ForEach(Actions.shareServices(for: shot), id: \.title) { service in
@@ -232,9 +238,9 @@ private struct MoreMenu: View {
                     }
                 }
             }
-            Button("Copy File Path") { Actions.copyPath(shot) }
+            MenuItem("Copy File Path") { Actions.copyPath(shot) }
             Divider()
-            Button("Dismiss") { store.dismiss(shot) }
+            MenuItem("Dismiss") { store.dismissByHand(shot) }
             Button("Move to Trash", role: .destructive) { store.trash(shot) }
         } label: {
             Image(systemName: "ellipsis")
@@ -245,5 +251,20 @@ private struct MoreMenu: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("More")
+    }
+}
+
+/// A card-menu item whose action is noted in the activity log as coming from the ⋯ menu.
+private struct MenuItem: View {
+    let title: String
+    let action: () -> Void
+
+    init(_ title: String, action: @escaping () -> Void) {
+        self.title = title
+        self.action = action
+    }
+
+    var body: some View {
+        Button(title) { ActivityLog.via("card-menu", action) }
     }
 }

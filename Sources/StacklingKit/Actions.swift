@@ -13,7 +13,7 @@ enum Actions {
     static let textToastTimeout: TimeInterval = 10
 
     static func copy(_ shot: Shot) {
-        note("copy", shot)
+        note(.copy, shot)
         Clipboard.write(shot: shot)
         Usage.used(shot.url, how: "copy")
         store.finish(shot, message: "Copied")
@@ -26,7 +26,7 @@ enum Actions {
 
     /// Files a shot into a library folder and takes it off the stack.
     static func file(_ shot: Shot, into folder: URL) {
-        note("file", shot)
+        note(.file, shot)
         guard Library.file(shot, into: folder) else { return }
         store.finish(shot, message: "Filed in \(folder.lastPathComponent)")
     }
@@ -38,16 +38,18 @@ enum Actions {
         NSPasteboard.general.writeObjects(ordered.map { $0.exportURL() as NSURL })
         ordered.forEach { Usage.used($0.url, how: "copy-all") }
         Log.actions.info("copy-all count=\(ordered.count)")
+        ActivityLog.record(.copyAll, ["count": ordered.count])
         ordered.last?.flashDone("Copied \(ordered.count)")
     }
 
     static func fileAll(_ shots: [Shot], into folder: URL) {
         Log.actions.info("file-all count=\(shots.count) folder=\(folder.lastPathComponent, privacy: .public)")
+        ActivityLog.record(.fileAll, ["count": shots.count])
         for shot in shots { file(shot, into: folder) }
     }
 
     static func fileIntoNewFolder(_ shot: Shot) {
-        note("file-into-new-folder", shot)
+        note(.file, shot, ["folder": "new"])
         guard let folder = Library.askForNewFolder() else { return }
         file(shot, into: folder)
     }
@@ -56,6 +58,7 @@ enum Actions {
     /// Asks Claude Code for a descriptive name and renames the file where it is. The card stays put.
     static func nameWithClaude(_ shot: Shot) {
         Log.actions.info("name-with-claude file=\(shot.url.lastPathComponent, privacy: .public)")
+        ActivityLog.record(.nameWithClaude, activityDetails(for: shot))
         shot.flashWorking("Asking Claude…", timeout: 120)
         Task {
             do {
@@ -77,7 +80,7 @@ enum Actions {
     }
 
     static func copyGIF(_ shot: Shot) {
-        note("copy-gif", shot)
+        note(.copyGIF, shot)
         shot.flashWorking("Making GIF…", timeout: gifToastTimeout)
         Task {
             do {
@@ -99,7 +102,7 @@ enum Actions {
 
     /// Saves a GIF next to the recording. It lands on the stack as its own card.
     static func saveGIF(_ shot: Shot, then done: ((Bool) -> Void)? = nil) {
-        note("save-gif", shot)
+        note(.saveGIF, shot)
         shot.flashWorking("Making GIF…", timeout: gifToastTimeout)
         let video = shot.url
         Task {
@@ -122,13 +125,13 @@ enum Actions {
     }
 
     static func openInQuickTime(_ shot: Shot) {
-        note("open-in-quicktime", shot)
+        note(.openInApp, shot, ["app": "quicktime"])
         open(shot.url, with: "/System/Applications/QuickTime Player.app")
     }
 
     /// Writes the annotations into the image file for good and removes the sidecar.
     static func flatten(_ shot: Shot) {
-        note("flatten", shot)
+        note(.flatten, shot)
         guard let rendered = shot.renderedWithMarkup() else { return }
         do {
             try MarkupRenderer.writePNG(rendered, to: shot.url, pixelScale: MarkupRenderer.pixelScale(shot.url))
@@ -141,7 +144,7 @@ enum Actions {
     }
 
     static func copyText(_ shot: Shot) {
-        note("copy-text", shot)
+        note(.copyText, shot)
         shot.flashWorking("Reading text…", timeout: textToastTimeout)
         let url = shot.url
         Task {
@@ -182,7 +185,7 @@ enum Actions {
 
     /// Opens the Stackling editor. Recordings and GIFs open in the preview instead.
     static func edit(_ shot: Shot) {
-        note("edit", shot)
+        note(shot.isStill ? .edit : .preview, shot)
         if !shot.isStill {
             PreviewWindowController.show(shot)
             return
@@ -193,12 +196,13 @@ enum Actions {
     /// Keep marks a shot so clean-up never clears it; pressing it again lets it go as normal.
     static func toggleKeep(_ shot: Shot) {
         shot.setKept(!shot.kept)
+        ActivityLog.record(.keep, activityDetails(for: shot).merging(["on": shot.kept]) { a, _ in a })
         shot.flashDone(shot.kept ? "Kept" : "Not kept")
         LibraryIndex.shared.scheduleRescan()
     }
 
     static func pin(_ shot: Shot) {
-        note("pin", shot)
+        note(.pin, shot)
         guard !shot.isVideo, let image = NSImage(contentsOf: shot.exportURL()) else { return }
         Usage.used(shot.url, how: "pin")
         PinWindow.show(image, shot: shot)
@@ -206,7 +210,7 @@ enum Actions {
     }
 
     static func openInPreview(_ shot: Shot) {
-        note("open-in-preview", shot)
+        note(.openInApp, shot, ["app": "preview"])
         if shot.isVideo {
             NSWorkspace.shared.open(shot.url)
             return
@@ -215,12 +219,12 @@ enum Actions {
     }
 
     static func reveal(_ shot: Shot) {
-        note("reveal", shot)
+        note(.reveal, shot)
         NSWorkspace.shared.activateFileViewerSelecting([shot.url])
     }
 
     static func copyPath(_ shot: Shot) {
-        note("copy-path", shot)
+        note(.copyPath, shot)
         // With edits, the path is to a copy with them drawn in, so a hidden secret stays hidden.
         Clipboard.write(string: shot.exportURL().path)
         Usage.used(shot.url, how: "copy-path")
@@ -228,7 +232,7 @@ enum Actions {
     }
 
     static func moveTo(_ shot: Shot) {
-        note("move-to", shot)
+        note(.moveTo, shot)
         NSApp.activate()
         let panel = NSSavePanel()
         panel.nameFieldStringValue = shot.url.lastPathComponent
@@ -258,6 +262,7 @@ enum Actions {
 
     static func share(_ shot: Shot, with service: NSSharingService) {
         Log.actions.info("share file=\(shot.url.lastPathComponent, privacy: .public) service=\(service.title, privacy: .public)")
+        ActivityLog.record(.share, activityDetails(for: shot).merging(["service": service.title]) { a, _ in a })
         NSApp.activate()
         service.perform(withItems: [shot.exportURL()])
         Usage.used(shot.url, how: "share")
@@ -272,8 +277,17 @@ enum Actions {
         NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: appPath), configuration: config)
     }
 
-    /// Logs which action ran on which file.
-    private static func note(_ action: String, _ shot: Shot) {
-        Log.actions.info("\(action, privacy: .public) file=\(shot.url.lastPathComponent, privacy: .public)")
+    /// Logs which action ran on which file, and notes it in the activity log (without the file name):
+    /// what kind of shot, and how long after it was taken.
+    private static func note(_ event: ActivityLog.Event, _ shot: Shot, _ details: [String: Any] = [:]) {
+        Log.actions.info("\(event.rawValue, privacy: .public) file=\(shot.url.lastPathComponent, privacy: .public)")
+        ActivityLog.record(event, details.merging(activityDetails(for: shot)) { mine, _ in mine })
+    }
+
+    /// What the activity log keeps about a shot: its kind, age in seconds, and a random tag that links
+    /// its events together (so "copied 6 s after it was taken" can be worked out). Never its name.
+    static func activityDetails(for shot: Shot) -> [String: Any] {
+        ["kind": shot.isVideo ? "video" : shot.isGIF ? "gif" : "still", "age": Int(Date().timeIntervalSince(shot.created)),
+         "shot": String(shot.id.uuidString.prefix(8))]
     }
 }

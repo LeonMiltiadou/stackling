@@ -92,6 +92,7 @@ final class Recorder: ObservableObject {
         guard let session else { return }
         let seconds = startedAt.map { Date().timeIntervalSince($0) } ?? 0
         Log.recording.info("stop seconds=\(seconds, format: .fixed(precision: 1)) discarded=\(discard)")
+        ActivityLog.record(discard ? .recordDiscard : .recordStop, ["seconds": Int(seconds)])
         self.session = nil
         startedAt = nil
         bar?.close()
@@ -112,6 +113,7 @@ final class Recorder: ObservableObject {
             }
             do {
                 let url = try Self.moveIntoPlace(temp)
+                CaptureFile.noteMadeHere(url)
                 Log.recording.info("saved file=\(url.lastPathComponent, privacy: .public) size=\(url.formattedFileSize ?? "?", privacy: .public)")
                 ShotStore.shared.addCapture(url)
             } catch {

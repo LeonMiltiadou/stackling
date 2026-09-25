@@ -9,6 +9,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     private static var openEditors: [String: EditorWindowController] = [:]
     private static func key(_ shot: Shot) -> String { shot.url.standardizedFileURL.path }
 
+    /// How the editor was left, for the activity log: copy, pin, flatten, or done (Done, ✕, Esc).
+    private var closedHow = "done"
+
     /// The app you were in when the editor opened; Copy, Pin and Done take you back to it.
     private var returnTo: NSRunningApplication?
 
@@ -90,6 +93,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         save()
+        let tools = Dictionary(grouping: model.markup.items, by: \.tool.rawValue).mapValues(\.count)
+        ActivityLog.record(.editorClose, ["how": closedHow, "tools": tools, "beautify": model.markup.beautify.enabled,
+                                          "kind": "still", "age": Int(Date().timeIntervalSince(model.shot.created))])
         Log.editor.info("close file=\(self.model.shot.url.lastPathComponent, privacy: .public)")
         EditorWindowController.openEditors[EditorWindowController.key(model.shot)] = nil
         // Back to where you were, unless another Stackling window (the library, say) is what you're using.
@@ -99,14 +105,15 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     private func saveCloseThen(_ next: AfterClose) {
+        closedHow = next.rawValue
         save()
         let shot = model.shot
         window?.close()
         Log.editor.info("\(next.rawValue, privacy: .public) file=\(shot.url.lastPathComponent, privacy: .public)")
         switch next {
-        case .copy: Actions.copy(shot)
-        case .pin: Actions.pin(shot)
-        case .flatten: Actions.flatten(shot)
+        case .copy: ActivityLog.via("editor") { Actions.copy(shot) }
+        case .pin: ActivityLog.via("editor") { Actions.pin(shot) }
+        case .flatten: ActivityLog.via("editor") { Actions.flatten(shot) }
         }
     }
 }

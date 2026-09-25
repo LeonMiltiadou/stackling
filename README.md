@@ -232,6 +232,14 @@ It asks for:
 - **Screen Recording**, to freeze the screen and to record
 - **Accessibility**, only if you turn on showing shortcuts in recordings
 
+## Helping shape Stackling
+
+**Settings → General → Keep an activity log on this Mac** notes which features you use and how you
+start them (a key, a button, a menu, a drag), and which app each shot was taken in. It never records
+file names, window titles or anything in your shots, and it never leaves your Mac. It's off unless you
+turn it on. If you build from source, `scripts/activity.sh [days]` summarises it: what you do first with
+a new shot, what you use most, and what you've never touched.
+
 ## What it changes on your Mac, and uninstalling
 
 To avoid two previews, Stackling turns off the Mac's own floating screenshot thumbnail. It also takes over

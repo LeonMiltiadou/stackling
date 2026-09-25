@@ -23,7 +23,9 @@ public enum StacklingApp {
         let delegate = AppDelegate()
         app.delegate = delegate
         app.setActivationPolicy(.regular)
-        Log.app.info("launch version=\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev", privacy: .public)")
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+        Log.app.info("launch version=\(version, privacy: .public)")
+        ActivityLog.recordLaunch(version: version)
         app.run()
     }
 }
