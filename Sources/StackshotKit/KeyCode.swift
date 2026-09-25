@@ -7,6 +7,7 @@ enum KeyCode {
     static let delete = UInt16(kVK_Delete)
     static let forwardDelete = UInt16(kVK_ForwardDelete)
     static let returnKey = UInt16(kVK_Return)
+    static let tab = UInt16(kVK_Tab)
     static let enter = UInt16(kVK_ANSI_KeypadEnter)
     static let left = UInt16(kVK_LeftArrow)
     static let right = UInt16(kVK_RightArrow)

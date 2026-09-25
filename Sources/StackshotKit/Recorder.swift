@@ -3,7 +3,7 @@ import ScreenCaptureKit
 
 /// Stackshot's own screen recorder: an area of a display, a whole display, or one window.
 /// The video lands on the stack when you stop. Stackshot's own windows (the stack, the
-/// recording bar) never show up in it; pinned screenshots do.
+/// recording bar) never show up in it; pinned screenshots and key caps do.
 @MainActor
 final class Recorder: ObservableObject {
     static let shared = Recorder()
@@ -42,11 +42,16 @@ final class Recorder: ObservableObject {
     private var session: RecordingSession?
     private var bar: RecordingBar?
     private var outline: RecordingOutline?
+    private var keystrokes: KeystrokeOverlay?
 
     func start(_ target: Target) {
         guard session == nil else {
             Log.recording.debug("start.ignored reason=already-recording")
             return
+        }
+        // Key caps have to be on screen before we ask what's on screen, so the recording can include them.
+        if AppSettings.showKeystrokes, case let .area(screen, rect) = target {
+            keystrokes = KeystrokeOverlay.start(over: rect.appKitFrame(inTopLeftSpaceOf: screen))
         }
         Task {
             do {
@@ -74,6 +79,8 @@ final class Recorder: ObservableObject {
                 }
             } catch {
                 session = nil
+                keystrokes?.stop()
+                keystrokes = nil
                 Log.recording.error("start.failed target=\(target.kind, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 NSSound.beep()
             }
@@ -91,6 +98,8 @@ final class Recorder: ObservableObject {
         bar = nil
         outline?.close()
         outline = nil
+        keystrokes?.stop()
+        keystrokes = nil
         Task {
             guard let temp = await session.finish() else { return }
             if discard {
@@ -126,9 +135,10 @@ final class Recorder: ObservableObject {
             }
             let me = ProcessInfo.processInfo.processIdentifier
             let ours = content.applications.filter { $0.processID == me }
-            let pinNumbers = Set(NSApp.windows.compactMap { $0 is PinWindow && $0.isVisible ? CGWindowID($0.windowNumber) : nil })
-            let pins = content.windows.filter { pinNumbers.contains($0.windowID) }
-            let filter = SCContentFilter(display: display, excludingApplications: ours, exceptingWindows: pins)
+            // Stackshot's own windows stay out, except pinned screenshots and key caps, which are there to be seen.
+            var shown = Set(NSApp.windows.compactMap { $0 is PinWindow && $0.isVisible ? CGWindowID($0.windowNumber) : nil })
+            if let keystrokes { shown.insert(keystrokes.windowNumber) }
+            let filter = SCContentFilter(display: display, excludingApplications: ours, exceptingWindows: content.windows.filter { shown.contains($0.windowID) })
             return RecordingSource(filter: filter, sourceRect: target.isWholeScreen ? nil : rect, screen: screen)
         }
     }
