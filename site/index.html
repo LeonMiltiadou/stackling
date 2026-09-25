@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stackling · A little stack that keeps your screenshots</title>
+<meta name="description" content="A free, open-source app for Mac. Every screenshot and screen recording you take waits in a neat stack in the corner of your screen until you're ready to use it.">
+<meta property="og:title" content="Stackling">
+<meta property="og:description" content="A little stack that keeps your screenshots. Free and open source, for Mac.">
+<meta property="og:image" content="https://stackling.leonm.co.uk/images/icon.png">
+<meta property="og:url" content="https://stackling.leonm.co.uk/">
+<meta name="twitter:card" content="summary">
+<link rel="icon" type="image/png" href="images/favicon.png">
+<link rel="apple-touch-icon" href="images/icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  color-scheme: light;
+  --bg:#F7F5FF; --surface:#FFFFFF; --ink:#1F1A45; --muted:#5E5A80; --line:#E6E2F7;
+  --violet:#7B6CF6; --violet-deep:#4A40C4; --violet-soft:#EEEBFF; --sunny:#FFB547; --card:#FFF8EC;
+  --on-violet:#FFFFFF;
+  --f-display:"Fredoka", "Avenir Next Rounded", ui-rounded, system-ui, sans-serif;
+  --f-body:"Figtree", -apple-system, "Helvetica Neue", sans-serif;
+  --f-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme: dark;
+    --bg:#121026; --surface:#1B1838; --ink:#EEEBFF; --muted:#A6A1CC; --line:#2D2956;
+    --violet:#9C8CFF; --violet-deep:#7B6CF6; --violet-soft:#241F4D; --card:#2A2550;
+    --on-violet:#140F33;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:17px;line-height:1.6;padding-inline:20px;padding-block:env(safe-area-inset-top,0px) env(safe-area-inset-bottom,0px)}
+a{color:var(--violet-deep)}
+@media (prefers-color-scheme: dark){ a{color:var(--violet)} }
+img{max-width:100%;height:auto;display:block}
+.wrap{max-width:1100px;margin:0 auto}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;line-height:1.1;text-wrap:balance;margin:0}
+p{margin:0}
+kbd{font-family:var(--f-mono);font-size:.85em;padding:1px 7px;border-radius:6px;background:var(--violet-soft);border:1px solid var(--line);white-space:nowrap}
+:focus-visible{outline:3px solid var(--sunny);outline-offset:3px;border-radius:8px}
+
+/* nav */
+nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-block:22px}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);font-family:var(--f-display);font-weight:600;font-size:22px}
+.brand img{width:36px;height:36px}
+nav .links{display:flex;gap:20px;font-weight:600;font-size:15px}
+nav .links a{text-decoration:none;color:var(--muted)}
+nav .links a:hover{color:var(--ink)}
+
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:48px;align-items:center;padding-block:36px 72px}
+.hero h1{font-size:clamp(44px,6.4vw,76px);letter-spacing:-.01em}
+.hero .tag{font-family:var(--f-display);font-weight:500;font-size:clamp(22px,2.6vw,30px);color:var(--violet-deep);margin-top:10px;line-height:1.2}
+@media (prefers-color-scheme: dark){ .hero .tag{color:var(--violet)} }
+.hero .lede{color:var(--muted);max-width:36ch;margin-top:18px;font-size:18px}
+.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:14px 22px;border-radius:14px;font-weight:700;font-size:17px;text-decoration:none;transition:transform .15s ease, box-shadow .15s ease}
+.btn.primary{background:var(--violet-deep);color:#fff;box-shadow:0 10px 24px -10px rgba(74,64,196,.7)}
+@media (prefers-color-scheme: dark){ .btn.primary{background:var(--violet);color:var(--on-violet)} }
+.btn.secondary{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btn:hover{transform:translateY(-1px)}
+.btn svg{width:20px;height:20px;flex:none}
+.meta{color:var(--muted);font-size:14px;margin-top:14px}
+
+/* the mock desktop */
+.desk{position:relative;aspect-ratio:16/11;max-width:100%;border-radius:22px;overflow:hidden;clip-path:inset(0 round 22px);
+  background:
+    radial-gradient(120% 90% at 85% 10%, #FFD49A 0%, rgba(255,212,154,0) 45%),
+    radial-gradient(110% 100% at 10% 100%, #5A4FD6 0%, rgba(90,79,214,0) 60%),
+    linear-gradient(160deg,#A293FF 0%,#7B6CF6 45%,#4A40C4 100%);
+  box-shadow:0 30px 60px -30px rgba(40,30,120,.55), 0 0 0 1px rgba(255,255,255,.08) inset}
+.menubar{position:absolute;inset:0 0 auto 0;height:26px;background:rgba(20,15,50,.28);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:space-between;padding-inline:14px;color:#fff;font-size:12.5px;font-weight:600}
+.menubar span{opacity:.9}
+.menubar .right{display:flex;gap:12px;align-items:center}
+.menubar img{width:15px;height:15px;border-radius:4px}
+.window{position:absolute;right:7%;top:15%;width:52%;aspect-ratio:4/3;border-radius:12px;background:rgba(255,255,255,.9);box-shadow:0 18px 40px -18px rgba(20,10,60,.5)}
+.window::before{content:"";position:absolute;left:14px;top:12px;width:44px;height:10px;background:radial-gradient(circle at 5px 5px,#FF5F57 4.5px,transparent 5px),radial-gradient(circle at 21px 5px,#FEBC2E 4.5px,transparent 5px),radial-gradient(circle at 37px 5px,#28C840 4.5px,transparent 5px)}
+.window i{position:absolute;left:14px;right:14px;height:9px;border-radius:5px;background:#E4E0F7}
+.window i:nth-of-type(1){top:40px;right:40%} .window i:nth-of-type(2){top:60px} .window i:nth-of-type(3){top:80px;right:25%} .window i:nth-of-type(4){top:112px;bottom:14px;height:auto;background:#F1EEFD}
+@media (prefers-color-scheme: dark){ .window{background:rgba(30,26,64,.9)} .window i{background:#3A3470} .window i:nth-of-type(4){background:#2B2658} }
+.stack{position:absolute;left:0;bottom:0;width:48%;filter:drop-shadow(0 12px 22px rgba(20,10,60,.35))}
+
+/* sections */
+section{padding-block:64px;border-top:1px solid var(--line)}
+.eyebrow{font-weight:700;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--violet-deep)}
+@media (prefers-color-scheme: dark){ .eyebrow{color:var(--violet)} }
+section h2{font-size:clamp(32px,4vw,44px);margin-top:8px}
+.intro{color:var(--muted);max-width:60ch;margin-top:12px}
+
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:32px;counter-reset:step}
+.step{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px}
+.step::before{counter-increment:step;content:counter(step);display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--card);color:var(--ink);font-family:var(--f-display);font-weight:600;margin-bottom:14px;border:1px solid var(--line)}
+.step h3{font-size:22px}
+.step p{color:var(--muted);margin-top:6px;font-size:16px}
+
+.feature{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:48px;align-items:center;margin-top:48px}
+.feature.flip{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr)}
+.feature.flip .copy{order:2}
+.feature h3{font-size:30px}
+.feature p{color:var(--muted);margin-top:10px;max-width:46ch}
+.shot{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:18px;display:grid;place-items:center}
+.shot.dark{background:#1E1B33;border-color:#2D2956}
+.mini-demo{display:flex;align-items:center;gap:22px;justify-content:center;padding-block:14px}
+.mini-demo img{width:124px}
+.mini-demo .arrow{font-family:var(--f-display);font-size:28px;color:var(--muted)}
+.mini-demo .full{width:200px}
+
+.secrets{display:grid;gap:12px;width:100%}
+.secrets .toggle{justify-self:center;display:inline-flex;gap:0;border-radius:999px;border:1px solid #3A3566;overflow:hidden}
+.secrets .toggle button{font:inherit;font-size:14px;font-weight:700;border:0;padding:8px 16px;background:transparent;color:#C9C4F2;cursor:pointer}
+.secrets .toggle button[aria-pressed="true"]{background:#9C8CFF;color:#140F33}
+.secrets figure{margin:0;position:relative;border-radius:12px;overflow:hidden}
+.secrets figure img{width:100%;transition:opacity .25s ease}
+.secrets figure img.after{position:absolute;inset:0}
+
+.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:40px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px}
+.tile h3{font-size:20px}
+.tile p{color:var(--muted);font-size:15.5px;margin-top:6px}
+
+.install{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:32px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:24px}
+.panel h3{font-size:22px;margin-bottom:10px}
+.panel ol{margin:0;padding-left:22px;display:grid;gap:8px;color:var(--muted)}
+.panel ol strong{color:var(--ink)}
+.note{margin-top:14px;font-size:15px;color:var(--muted)}
+
+.privacy{display:flex;gap:18px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;margin-top:28px}
+.privacy p{color:var(--muted)}
+.privacy strong{color:var(--ink)}
+
+footer{border-top:1px solid var(--line);padding-block:32px 48px;display:flex;flex-wrap:wrap;gap:12px 28px;justify-content:space-between;color:var(--muted);font-size:15px}
+footer a{color:var(--muted)}
+
+@media (max-width:900px){
+  .hero,.feature,.feature.flip,.install{grid-template-columns:1fr}
+  .feature.flip .copy{order:0}
+  .steps,.grid{grid-template-columns:1fr}
+  .hero{padding-block:16px 56px;gap:36px}
+}
+@media (max-width:520px){
+  nav .links a:not(.gh){display:none}
+  .mini-demo .full{width:150px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav aria-label="Main">
+    <a class="brand" href="#top"><img src="images/icon.png" alt="">Stackling</a>
+    <div class="links">
+      <a href="#how">How it works</a>
+      <a href="#get">Download</a>
+      <a class="gh" href="https://github.com/LeonMiltiadou/stackling">GitHub</a>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div>
+      <h1>Stackling</h1>
+      <p class="tag">A little stack that keeps your screenshots.</p>
+      <p class="lede">Every screenshot and screen recording you take waits in a neat stack in the corner of your Mac until you're ready to use it.</p>
+      <div class="actions">
+        <a class="btn primary" href="https://github.com/LeonMiltiadou/stackling/releases/latest/download/Stackling.zip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+          Download for Mac
+        </a>
+        <a class="btn secondary" href="https://github.com/LeonMiltiadou/stackling">View the code</a>
+      </div>
+      <p class="meta">Free and open source · macOS 14 or newer · Apple Silicon and Intel</p>
+    </div>
+    <div class="desk" role="img" aria-label="A Mac desktop with the Stackling stack in the bottom-left corner, holding three screenshots">
+      <div class="menubar"><span>Finder</span><span class="right"><img src="images/icon.png" alt=""><span>Thu 12:09</span></span></div>
+      <div class="window"><i></i><i></i><i></i><i></i></div>
+      <img class="stack" src="images/stack.png" alt="">
+    </div>
+  </header>
+
+  <section id="how" aria-labelledby="how-title">
+    <p class="eyebrow">How it works</p>
+    <h2 id="how-title">Take it now, deal with it later</h2>
+    <p class="intro">On a Mac, a screenshot's thumbnail slides away after a few seconds and the file joins the pile on your Desktop. Stackling keeps it within reach instead.</p>
+    <div class="steps">
+      <div class="step"><h3>Take a screenshot</h3><p>Press <kbd>⇧⌘4</kbd> as usual. The screen freezes while you pick, so menus and hover effects stay put.</p></div>
+      <div class="step"><h3>It waits in the stack</h3><p>New shots pile up in the corner, newest on top. After a moment the stack tucks itself into a small box.</p></div>
+      <div class="step"><h3>Use it when you're ready</h3><p>Copy it, drag it into Slack or an email, mark it up, or file it away. Then it leaves the stack.</p></div>
+    </div>
+
+    <div class="feature">
+      <div class="copy">
+        <h3>Out of the way until you need it</h3>
+        <p>After a couple of quiet seconds the stack shrinks into a little box showing the newest shot and how many are waiting. Click it and everything's back. You can drag the stack anywhere if the corner's busy.</p>
+      </div>
+      <div class="shot">
+        <div class="mini-demo">
+          <img class="full" src="images/stack.png" alt="The full stack of screenshots">
+          <span class="arrow" aria-hidden="true">→</span>
+          <img src="images/mini.png" alt="The stack shrunk into a small box with a count of 3">
+        </div>
+      </div>
+    </div>
+
+    <div class="feature flip">
+      <div class="copy">
+        <h3>Hide secrets before you share</h3>
+        <p>One click finds passwords, API keys, tokens, emails and card numbers in a screenshot and covers them with solid blocks. Handy when the thing you're showing someone has a <code>.env</code> file in the corner.</p>
+      </div>
+      <div class="shot dark">
+        <div class="secrets">
+          <div class="toggle" role="group" aria-label="Show the screenshot before or after hiding secrets">
+            <button type="button" id="secrets-before" aria-pressed="false">Before</button>
+            <button type="button" id="secrets-after" aria-pressed="true">After</button>
+          </div>
+          <figure>
+            <img src="images/secrets-before.png" alt="A terminal showing a .env file with a database password, Stripe key, GitHub token and email">
+            <img class="after" id="secrets-after-img" src="images/secrets-after.png" alt="The same screenshot with the password, keys, token and email covered by black blocks">
+          </figure>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="copy">
+        <h3>Tidy with Claude</h3>
+        <p>If you use Claude Code, Stackling can ask it to look at your loose screenshots and suggest a clear name and folder for each. You see every suggestion first, change anything you like, and nothing moves until you say so.</p>
+      </div>
+      <div class="shot dark"><img src="images/groom.png" alt="A review list: three screenshots with suggested folders Bugs, Monitoring and Design, and descriptive new names"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="more-title">
+    <p class="eyebrow">And also</p>
+    <h2 id="more-title">Small things that add up</h2>
+    <div class="grid">
+      <div class="tile"><h3>Screen recordings</h3><p>Press <kbd>⇧⌘7</kbd> to record an area, a window or the whole screen. Trim it, and copy it as a GIF for Slack or GitHub.</p></div>
+      <div class="tile"><h3>Mark up in seconds</h3><p>Arrows, boxes, text, numbered steps and highlights. Your edits stay editable, and copying always includes them.</p></div>
+      <div class="tile"><h3>A pretty background</h3><p>Beautify puts a shot on a gradient with rounded corners and a shadow, ready to post.</p></div>
+      <div class="tile"><h3>Copy the words</h3><p>Grab the text from any screenshot, straight to your clipboard.</p></div>
+      <div class="tile"><h3>Pin it on top</h3><p>Float a screenshot above every window while you copy from one app into another.</p></div>
+      <div class="tile"><h3>No more messy Desktop</h3><p>Shots go into their own folder and tidy themselves into monthly archives after a week.</p></div>
+    </div>
+  </section>
+
+  <section id="get" aria-labelledby="get-title">
+    <p class="eyebrow">Get it</p>
+    <h2 id="get-title">Free, for any Mac from the last few years</h2>
+    <div class="install">
+      <div class="panel">
+        <h3>Install</h3>
+        <ol>
+          <li><a href="https://github.com/LeonMiltiadou/stackling/releases/latest/download/Stackling.zip"><strong>Download Stackling</strong></a></li>
+          <li>Unzip it and drag <strong>Stackling</strong> into <strong>Applications</strong></li>
+          <li>Open it. The first time you take a screenshot, allow <strong>Screen Recording</strong> so it can freeze your screen</li>
+        </ol>
+      </div>
+      <div class="panel">
+        <h3>"Apple cannot check it"?</h3>
+        <ol>
+          <li>Click <strong>Done</strong> on the message</li>
+          <li>Open <strong>System Settings → Privacy &amp; Security</strong></li>
+          <li>Scroll down, click <strong>Open Anyway</strong> next to Stackling, and confirm</li>
+        </ol>
+        <p class="note">You only do this once. Stackling isn't in the App Store yet, so macOS asks you to confirm you trust it.</p>
+      </div>
+    </div>
+    <div class="privacy">
+      <img src="images/icon.png" alt="" width="48" height="48">
+      <p><strong>Private by design.</strong> Stackling works entirely on your Mac, with no account and nothing sent anywhere. The one exception is Tidy with Claude, which only runs when you ask and uses your own Claude Code. The code is all <a href="https://github.com/LeonMiltiadou/stackling">on GitHub</a> if you'd like to check.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Stackling is free and open source, under the <a href="https://github.com/LeonMiltiadou/stackling/blob/main/LICENSE">MIT licence</a>.</span>
+    <span>Made by <a href="https://github.com/LeonMiltiadou">Leon Miltiadou</a> · <a href="https://github.com/LeonMiltiadou/stackling/issues">Ideas and bugs</a></span>
+  </footer>
+</div>
+<script>
+  // Before / after toggle for the Hide Secrets example.
+  const before = document.getElementById("secrets-before");
+  const after = document.getElementById("secrets-after");
+  const afterImg = document.getElementById("secrets-after-img");
+  function show(hidden) {
+    afterImg.style.opacity = hidden ? "1" : "0";
+    after.setAttribute("aria-pressed", String(hidden));
+    before.setAttribute("aria-pressed", String(!hidden));
+  }
+  before.addEventListener("click", () => show(false));
+  after.addEventListener("click", () => show(true));
+</script>
+</body>
+</html>

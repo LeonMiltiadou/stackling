@@ -184,7 +184,7 @@ final class GroomModel: ObservableObject {
 
     func showLibrary() { NSWorkspace.shared.open(root) }
 
-    private func loadThumbnails() {
+    func loadThumbnails() {
         for entry in entries {
             let request = QLThumbnailGenerator.Request(fileAt: entry.file, size: CGSize(width: 96, height: 64), scale: 2, representationTypes: .thumbnail)
             QLThumbnailGenerator.shared.generateBestRepresentation(for: request) { rep, _ in
