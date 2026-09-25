@@ -17,6 +17,9 @@ jobs:
       - name: Build
         run: swift build -c release
       - name: Test
-        run: swift test
+        # `script` gives swift test a terminal, so results stream live instead of arriving all at once at the
+        # end. A hung test then shows which one it is, and the timeout stops it burning runner time.
+        run: script -q /dev/null swift test
+        timeout-minutes: 10
       - name: Package the app
         run: scripts/build.sh package
