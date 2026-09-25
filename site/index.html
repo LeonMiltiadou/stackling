@@ -68,6 +68,28 @@ nav .links a:hover{color:var(--ink)}
 .btn svg{width:20px;height:20px;flex:none}
 .meta{color:var(--muted);font-size:14px;margin-top:14px}
 
+/* hero video */
+.hero-video{margin:0;border-radius:22px;overflow:hidden;clip-path:inset(0 round 22px);aspect-ratio:16/10;background:#6E5FEA;box-shadow:0 30px 60px -30px rgba(40,30,120,.55)}
+.hero-video video{width:100%;height:100%;display:block;object-fit:cover}
+
+/* step-through demos */
+.player{display:grid;gap:12px;width:100%}
+.frames{position:relative;border-radius:12px;overflow:hidden;background:#1E1F29}
+.frames img{width:100%;display:block}
+.frames img+img{position:absolute;inset:0;opacity:0;transition:opacity .45s ease}
+.frames img.on{opacity:1}
+.captions{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+.captions button{font:inherit;font-size:13.5px;font-weight:700;border:1px solid #3A3566;border-radius:999px;padding:6px 12px;background:transparent;color:#C9C4F2;cursor:pointer}
+.captions button[aria-pressed="true"]{background:#9C8CFF;color:#140F33;border-color:#9C8CFF}
+.rec{display:grid;gap:18px;justify-items:center;padding-block:18px}
+.rec img.bar{width:min(240px,70%)}
+.rec img.caps{width:min(320px,90%)}
+.rec .label{color:#A6A1CC;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.howto{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}
+.howto div{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;font-size:15px;color:var(--muted)}
+.howto strong{display:block;color:var(--ink);font-size:15.5px;margin-bottom:2px}
+@media (max-width:900px){ .howto{grid-template-columns:1fr} }
+
 /* the mock desktop */
 .desk{position:relative;aspect-ratio:16/11;max-width:100%;border-radius:22px;overflow:hidden;clip-path:inset(0 round 22px);
   background:
@@ -176,17 +198,16 @@ footer a{color:var(--muted)}
       </div>
       <p class="meta">Free and open source · macOS 14 or newer · Apple Silicon and Intel</p>
     </div>
-    <div class="desk" role="img" aria-label="A Mac desktop with the Stackling stack in the bottom-left corner, holding three screenshots">
-      <div class="menubar"><span>Finder</span><span class="right"><img src="images/icon.png" alt=""><span>Thu 12:09</span></span></div>
-      <div class="window"><i></i><i></i><i></i><i></i></div>
-      <img class="stack" src="images/stack.png" alt="">
-    </div>
+    <figure class="hero-video">
+      <video src="images/demo.mp4" poster="images/demo-poster.jpg" autoplay muted loop playsinline preload="metadata"
+             aria-label="Demo: three screenshots land in the stack, it shrinks into a small box, a click opens it, a card is copied and leaves"></video>
+    </figure>
   </header>
 
   <section id="how" aria-labelledby="how-title">
     <p class="eyebrow">How it works</p>
     <h2 id="how-title">Take it now, deal with it later</h2>
-    <p class="intro">On a Mac, a screenshot's thumbnail slides away after a few seconds and the file joins the pile on your Desktop. Stackling keeps it within reach instead.</p>
+    <p class="intro">On a Mac, a screenshot's thumbnail slides away after a few seconds and the file joins the pile on your Desktop. Stackling keeps it within reach instead. It works the same for screenshots, screen recordings and GIFs.</p>
     <div class="steps">
       <div class="step"><h3>Take a screenshot</h3><p>Press <kbd>⇧⌘4</kbd> as usual. The screen freezes while you pick, so menus and hover effects stay put.</p></div>
       <div class="step"><h3>It waits in the stack</h3><p>New shots pile up in the corner, newest on top. After a moment the stack tucks itself into a small box.</p></div>
@@ -209,6 +230,27 @@ footer a{color:var(--muted)}
 
     <div class="feature flip">
       <div class="copy">
+        <h3>Mark it up in seconds</h3>
+        <p>Click a screenshot to box the important bit, point at it, number the steps and say why. One more click puts it on a pretty background, ready for Slack or a pull request. Your edits stay editable, and copying always includes them.</p>
+      </div>
+      <div class="shot dark">
+        <div class="player" id="markup">
+          <div class="frames">
+            <img src="images/markup-0.jpg" alt="A screenshot of Swift code">
+            <img src="images/markup-1.jpg" alt="The same code with a red box around one line">
+            <img src="images/markup-2.jpg" alt="An arrow and a numbered marker added">
+            <img src="images/markup-3.jpg" alt="A note added: Empty cart crashes here">
+            <img src="images/markup-4.jpg" alt="The marked-up screenshot on a violet gradient background">
+          </div>
+          <div class="captions" role="group" aria-label="Markup steps">
+            <button type="button">Screenshot</button><button type="button">Box it</button><button type="button">Point</button><button type="button">Say why</button><button type="button">✨ Beautify</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="feature">
+      <div class="copy">
         <h3>Hide secrets before you share</h3>
         <p>One click finds passwords, API keys, tokens, emails and card numbers in a screenshot and covers them with solid blocks. Handy when the thing you're showing someone has a <code>.env</code> file in the corner.</p>
       </div>
@@ -226,10 +268,30 @@ footer a{color:var(--muted)}
       </div>
     </div>
 
+    <div class="feature flip">
+      <div class="copy">
+        <h3>Record your screen, share a GIF</h3>
+        <p>Press <kbd>⇧⌘7</kbd> and drag an area, click for the whole screen, or pick a window. A small bar keeps time. When you stop, the recording lands in the stack: trim it, or copy it as a looping GIF for Slack or GitHub. Turn on key caps and viewers see the shortcuts you press, never what you type.</p>
+      </div>
+      <div class="shot dark">
+        <div class="rec">
+          <span class="label">While you record</span>
+          <img class="bar" src="images/recording-bar.png" alt="The recording bar: a red dot, the time, a Stop button and a bin">
+          <img class="caps" src="images/keycaps.png" alt="Key caps showing ⇧⌘P, ⌘C and Return">
+        </div>
+      </div>
+    </div>
+
     <div class="feature">
       <div class="copy">
-        <h3>Tidy with Claude</h3>
-        <p>If you use Claude Code, Stackling can ask it to look at your loose screenshots and suggest a clear name and folder for each. You see every suggestion first, change anything you like, and nothing moves until you say so.</p>
+        <h3>✨ Tidy with Claude</h3>
+        <p>If you use Claude Code, Stackling can ask it to look at your loose screenshots and recordings and suggest a clear name and a folder for each, reusing folders you already have.</p>
+        <div class="howto">
+          <div><strong>1. Click ✨ Tidy</strong>On the stack, or in the menu bar.</div>
+          <div><strong>2. Check the list</strong>Change any name or folder, or untick one.</div>
+          <div><strong>3. Apply</strong>Nothing moves until you do.</div>
+        </div>
+        <p style="margin-top:12px">For a single shot, choose <strong>✨ Name with Claude</strong> from its <strong>⋯</strong> menu. It uses your own Claude account and only reads your screenshots.</p>
       </div>
       <div class="shot dark"><img src="images/groom.png" alt="A review list: three screenshots with suggested folders Bugs, Monitoring and Design, and descriptive new names"></div>
     </div>
@@ -239,9 +301,9 @@ footer a{color:var(--muted)}
     <p class="eyebrow">And also</p>
     <h2 id="more-title">Small things that add up</h2>
     <div class="grid">
-      <div class="tile"><h3>Screen recordings</h3><p>Press <kbd>⇧⌘7</kbd> to record an area, a window or the whole screen. Trim it, and copy it as a GIF for Slack or GitHub.</p></div>
-      <div class="tile"><h3>Mark up in seconds</h3><p>Arrows, boxes, text, numbered steps and highlights. Your edits stay editable, and copying always includes them.</p></div>
-      <div class="tile"><h3>A pretty background</h3><p>Beautify puts a shot on a gradient with rounded corners and a shadow, ready to post.</p></div>
+      <div class="tile"><h3>Freeze the screen</h3><p>The screen holds still while you pick an area, with a magnifier for exact pixels, so menus and hover states stay put.</p></div>
+      <div class="tile"><h3>Keys on every card</h3><p>Point at a card: <kbd>⌘C</kbd> copies, <kbd>Space</kbd> opens, <kbd>T</kbd> grabs the text, <kbd>Esc</kbd> dismisses.</p></div>
+      <div class="tile"><h3>Put it anywhere</h3><p>Drag the stack out of the corner when you need that bit of screen. It snaps back when you're done.</p></div>
       <div class="tile"><h3>Copy the words</h3><p>Grab the text from any screenshot, straight to your clipboard.</p></div>
       <div class="tile"><h3>Pin it on top</h3><p>Float a screenshot above every window while you copy from one app into another.</p></div>
       <div class="tile"><h3>No more messy Desktop</h3><p>Shots go into their own folder and tidy themselves into monthly archives after a week.</p></div>
@@ -291,8 +353,26 @@ footer a{color:var(--muted)}
     after.setAttribute("aria-pressed", String(hidden));
     before.setAttribute("aria-pressed", String(!hidden));
   }
-  before.addEventListener("click", () => show(false));
-  after.addEventListener("click", () => show(true));
+  // Flips on its own until someone clicks, then stays where they put it.
+  const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let secretsTimer = still ? null : setInterval(() => show(after.getAttribute("aria-pressed") !== "true"), 2600);
+  before.addEventListener("click", () => { clearInterval(secretsTimer); show(false); });
+  after.addEventListener("click", () => { clearInterval(secretsTimer); show(true); });
+
+  // Markup demo: steps through the edits, and any step can be picked.
+  const player = document.getElementById("markup");
+  const frames = [...player.querySelectorAll(".frames img")];
+  const steps = [...player.querySelectorAll(".captions button")];
+  let step = still ? frames.length - 1 : 0;
+  function showStep(i) {
+    step = i;
+    frames.forEach((f, n) => f.classList.toggle("on", n <= i && (n === i || n === 0)));
+    frames.forEach((f, n) => { if (n > 0) f.style.opacity = n === i ? "1" : "0"; });
+    steps.forEach((b, n) => b.setAttribute("aria-pressed", String(n === i)));
+  }
+  showStep(step);
+  let markupTimer = still ? null : setInterval(() => showStep((step + 1) % frames.length), 1700);
+  steps.forEach((b, n) => b.addEventListener("click", () => { clearInterval(markupTimer); showStep(n); }));
 </script>
 </body>
 </html>

@@ -9,6 +9,13 @@
 <p align="center">A free, open-source app for Mac. Every screenshot and screen recording you take waits in a neat
 stack in the corner of your screen until you're ready to use it.</p>
 
+<p align="center"><a href="https://stackling.leonm.co.uk"><strong>stackling.leonm.co.uk</strong></a> ·
+<a href="../../releases/latest/download/Stackling.zip"><strong>Download for Mac</strong></a></p>
+
+<p align="center">
+  <img src="site/images/demo.gif" width="720" alt="Demo: three screenshots land in the stack, it shrinks into a small box, a click opens it, a card is copied and leaves">
+</p>
+
 ---
 
 ## Why you might like it
@@ -115,8 +122,15 @@ Screenshots save to **Pictures › Stackling** instead of your Desktop.
 - Got a Desktop full of old screenshots? **Settings → Library → Move Desktop Screenshots Into the Library…**
   moves them in one go (it asks first, and only moves screenshots).
 
-**Tidy with Claude** is optional. If you use [Claude Code](https://claude.com/claude-code), Stackling can
-ask it to look at your loose screenshots and suggest a clear name and a folder for each:
+**✨ Tidy with Claude** is optional. If you use [Claude Code](https://claude.com/claude-code), Stackling can
+ask it to look at your loose screenshots and recordings and suggest a clear name and a folder for each:
+
+1. Click **✨ Tidy** on the stack (next to Clear all), or **Tidy with Claude…** in the menu bar
+2. Check the list: change any name or folder, or untick anything you'd rather leave
+3. Click **Apply**. Nothing moves before that
+
+For one shot, choose **✨ Name with Claude** from its **⋯** menu. The ✨ buttons only appear once
+Claude Code is installed.
 
 ```
 Screenshot 2026-09-25 at 10.00.00.png  →  Bugs/checkout-summary-cart-items-undefined.png
@@ -124,6 +138,21 @@ Screenshot 2026-09-25 at 10.00.00.png  →  Bugs/checkout-summary-cart-items-und
 
 You see every suggestion first and can change or skip any of them. Nothing moves until you click **Apply**.
 It uses your own Claude account and only ever reads your screenshots.
+
+## What works with what
+
+| | Screenshots | Screen recordings | GIFs |
+| --- | :---: | :---: | :---: |
+| Copy, drag, file into a folder, Show in Finder | ✅ | ✅ | ✅ |
+| Preview | Editor | ✅ plays on a loop | ✅ plays |
+| Mark up, beautify, 🛡 Hide Secrets | ✅ | ❌ | ❌ |
+| Copy the text in it | ✅ | ❌ | ❌ |
+| Pin on top of everything | ✅ | ❌ | ❌ |
+| Trim, copy or save as a GIF | | ✅ | |
+| ✨ Tidy and Name with Claude | ✅ | ✅ from a frame of the video | ✅ |
+
+Screenshots can be PNG, JPEG, HEIC, TIFF or PDF, whichever macOS is set to save. Stackling can't hide
+secrets inside videos yet, so check a recording before you share it.
 
 ## Settings
 

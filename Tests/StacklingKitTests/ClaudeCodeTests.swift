@@ -29,6 +29,13 @@ import Testing
         #expect(prompt.contains("- Design"))
     }
 
+    @Test func recordingsPointClaudeAtAFrame() {
+        let video = URL(fileURLWithPath: "/x/Screen Recording 1.mov")
+        let frame = URL(fileURLWithPath: "/tmp/stills/recording-1.jpg")
+        let prompt = ClaudeCode.prompt(for: [video], existingFolders: [], stills: [video: frame])
+        #expect(prompt.contains("Screen Recording 1.mov (a recording: look at this frame from it instead: /tmp/stills/recording-1.jpg)"))
+    }
+
     /// Real call to Claude Code. Costs a few cents, so it only runs when asked:
     /// STACKLING_LIVE_CLAUDE=1 swift test --filter ClaudeCodeTests
     @Test(.enabled(if: ProcessInfo.processInfo.environment["STACKLING_LIVE_CLAUDE"] == "1"))

@@ -89,6 +89,10 @@ private struct MorePill: View {
             }
             .buttonStyle(PillButtonStyle())
             .help("Dismiss everything (files stay on disk)")
+
+            if ClaudeCode.isInstalled {
+                TidyButton(compact: false)
+            }
         }
         .font(.system(size: 12, weight: .semibold))
     }
@@ -189,6 +193,9 @@ private struct ExpandedStack: View {
                 }
                 .frame(maxHeight: .infinity)
                 .overlay(MoveGrip(store: store))
+                if ClaudeCode.isInstalled {
+                    TidyButton(compact: true)
+                }
                 Button("Clear all") { store.clearAll() }
                     .buttonStyle(PillButtonStyle(compact: true))
                     .help("Dismiss everything (files stay on disk)")
@@ -225,5 +232,25 @@ private struct ExpandedStack: View {
         .padding(.top, Layout.pad)
         .padding(.bottom, Layout.pad - Layout.listVPad)
         .transition(.opacity)
+    }
+}
+
+/// ✨ Tidy: asks Claude Code to name your loose screenshots and file them into folders. Shown only when
+/// Claude Code is installed, so it's there to find without digging through menus.
+private struct TidyButton: View {
+    let compact: Bool
+
+    var body: some View {
+        Button {
+            GroomWindowController.show()
+        } label: {
+            Label("Tidy", systemImage: "sparkles")
+                .labelStyle(.titleAndIcon)
+                .padding(.horizontal, compact ? 0 : 12)
+                .frame(height: compact ? nil : Layout.pillH)
+                .contentShape(Capsule())
+        }
+        .buttonStyle(PillButtonStyle(compact: compact))
+        .help("Tidy with Claude: suggests a clear name and a folder for each loose screenshot. You review everything before anything moves.")
     }
 }

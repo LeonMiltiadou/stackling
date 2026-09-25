@@ -5,7 +5,14 @@ import SwiftUI
 struct ShotCard: View {
     @ObservedObject var shot: Shot
     let store: ShotStore
-    @State private var hovering = false
+    @State private var hovering: Bool
+
+    /// `hovering` starts a card already showing its buttons, for rendering demos of it.
+    init(shot: Shot, store: ShotStore, hovering: Bool = false) {
+        self.shot = shot
+        self.store = store
+        _hovering = State(initialValue: hovering)
+    }
 
     var body: some View {
         ZStack {
@@ -192,7 +199,13 @@ private struct MoreMenu: View {
                 if !folders.isEmpty { Divider() }
                 Button("New Folder…") { Actions.fileIntoNewFolder(shot) }
             }
-            Button("Name with Claude") { Actions.nameWithClaude(shot) }
+            if ClaudeCode.isInstalled {
+                Button {
+                    Actions.nameWithClaude(shot)
+                } label: {
+                    Label("Name with Claude", systemImage: "sparkles")
+                }
+            }
             Button("Move to…") { Actions.moveTo(shot) }
             Button("Show in Finder") { Actions.reveal(shot) }
             if shot.isVideo {

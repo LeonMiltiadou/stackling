@@ -85,7 +85,7 @@ final class KeystrokeOverlay {
 // MARK: - View
 
 @MainActor
-private final class KeystrokeModel: ObservableObject {
+final class KeystrokeModel: ObservableObject {
     struct Cap: Identifiable { let id = UUID(); let label: String }
 
     /// How long a key cap stays on screen.
@@ -110,7 +110,7 @@ private final class KeystrokeModel: ObservableObject {
     }
 }
 
-private struct KeystrokeView: View {
+struct KeystrokeView: View {
     @ObservedObject var model: KeystrokeModel
 
     var body: some View {

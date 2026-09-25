@@ -23,6 +23,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let stackSymbol = "square.stack.3d.up.fill"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Looking for Claude Code can take a moment; do it now, off the main thread, so the stack never waits on it.
+        Task.detached(priority: .utility) { _ = ClaudeCode.isInstalled }
         MainMenu.install()
         panel = StackPanelController(store: store)
         watcher = ScreenshotWatcher(store: store)

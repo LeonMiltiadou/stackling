@@ -1,4 +1,7 @@
+import AVFoundation
 import Foundation
+import ImageIO
+import UniformTypeIdentifiers
 
 /// Asks your own Claude Code (the `claude` command, already signed in) to look at screenshots and
 /// suggest names and folders. It runs headless, can only read files (no writing, no shell), and
@@ -34,6 +37,9 @@ enum ClaudeCode {
     static let maxFilesPerRun = 30
     static let timeout: Duration = .seconds(300)
 
+    /// Whether Claude Code is on this Mac. Looked up once (it can take a moment), so warm it up off the main thread.
+    static let isInstalled: Bool = executable() != nil
+
     /// Where `claude` usually lives. Apps don't get your shell's PATH, so we look in the usual places,
     /// then ask a login shell as a last resort.
     static func executable() -> URL? {
@@ -52,11 +58,17 @@ enum ClaudeCode {
         Log.library.info("claude.start files=\(batch.count) model=\(model, privacy: .public)")
         let started = Date()
 
+        // Claude can't watch videos, so it gets a still from each recording to look at instead.
+        let stills = FileManager.default.temporaryDirectory.appendingPathComponent("stackling-stills-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: stills) }
+        let frames = await Self.stills(for: batch, in: stills)
+
         let output = try await run(claude, arguments: [
-            "-p", prompt(for: batch, existingFolders: existingFolders),
+            "-p", prompt(for: batch, existingFolders: existingFolders, stills: frames),
             "--model", model,
             "--tools", "Read,Glob",
             "--allowedTools", "Read,Glob",
+            "--add-dir", stills.path,
             "--setting-sources", "",
             "--json-schema", schema,
             "--output-format", "json",
@@ -70,14 +82,17 @@ enum ClaudeCode {
 
     // MARK: Prompt
 
-    static func prompt(for files: [URL], existingFolders: [String]) -> String {
+    static func prompt(for files: [URL], existingFolders: [String], stills: [URL: URL] = [:]) -> String {
         let folders = existingFolders.isEmpty ? "(none yet)" : existingFolders.map { "- \($0)" }.joined(separator: "\n")
-        let list = files.map { "- \($0.lastPathComponent)" }.joined(separator: "\n")
+        let list = files.map { file in
+            guard let still = stills[file] else { return "- \(file.lastPathComponent)" }
+            return "- \(file.lastPathComponent) (a recording: look at this frame from it instead: \(still.path))"
+        }.joined(separator: "\n")
         return """
         You're tidying a software developer's screenshots and screen recordings. They're all in the current folder.
 
-        For each file below, open it with the Read tool to see what it shows. You can't open videos (.mov, .mp4): \
-        judge those by their name and leave them in a sensible folder.
+        For each file below, open it with the Read tool to see what it shows. For recordings, open the frame \
+        listed next to it, since videos can't be opened directly; name the recording after what the frame shows.
 
         For each file, suggest:
         - name: what it shows, 2 to 6 words, lowercase words joined by hyphens, no extension, no dates. \
@@ -99,6 +114,33 @@ enum ClaudeCode {
     "file":{"type":"string"},"name":{"type":"string"},"folder":{"type":"string"},"reason":{"type":"string"}},\
     "required":["file","name","folder","reason"]}}},"required":["files"]}
     """
+
+    // MARK: Stills from recordings
+
+    /// A frame from the middle of each video in `files`, written as a JPEG into `folder`. Keyed by the video.
+    static func stills(for files: [URL], in folder: URL) async -> [URL: URL] {
+        let videos = files.filter { ["mov", "mp4", "m4v"].contains($0.pathExtension.lowercased()) }
+        guard !videos.isEmpty else { return [:] }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var result: [URL: URL] = [:]
+        for (i, video) in videos.enumerated() {
+            let asset = AVURLAsset(url: video)
+            let generator = AVAssetImageGenerator(asset: asset)
+            generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 1600, height: 1600)
+            let seconds = (try? await asset.load(.duration).seconds) ?? 0
+            do {
+                let (image, _) = try await generator.image(at: CMTime(seconds: seconds / 2, preferredTimescale: 600))
+                let out = folder.appendingPathComponent("recording-\(i + 1).jpg")
+                guard let dest = CGImageDestinationCreateWithURL(out as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { continue }
+                CGImageDestinationAddImage(dest, image, [kCGImageDestinationLossyCompressionQuality: 0.85] as CFDictionary)
+                if CGImageDestinationFinalize(dest) { result[video] = out }
+            } catch {
+                Log.library.error("claude.still-failed file=\(video.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return result
+    }
 
     // MARK: Output
 

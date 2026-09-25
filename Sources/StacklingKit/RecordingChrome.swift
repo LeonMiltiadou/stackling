@@ -32,7 +32,7 @@ final class RecordingBar {
     func close() { panel.orderOut(nil) }
 }
 
-private struct RecordingBarView: View {
+struct RecordingBarView: View {
     @ObservedObject var recorder: Recorder
     @State private var pulse = false
 

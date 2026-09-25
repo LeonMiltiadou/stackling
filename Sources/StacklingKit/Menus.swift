@@ -91,7 +91,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(recentlyDismissedItem())
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(title: "Open Library") { NSWorkspace.shared.open(ScreenshotPrefs.screenshotFolder) })
-        menu.addItem(ClosureMenuItem(title: "Tidy with Claude…") { GroomWindowController.show() })
+        let tidy = ClosureMenuItem(title: "Tidy with Claude…") { GroomWindowController.show() }
+        tidy.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)
+        tidy.toolTip = "Claude suggests a name and a folder for each loose screenshot. You review everything first."
+        menu.addItem(tidy)
         menu.addItem(MainMenu.settingsItem())
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(title: "How It Works…") { WelcomeAlert.show() })
@@ -217,6 +220,7 @@ enum WelcomeAlert {
         • Dismissed cards live in the menu bar under Recently Dismissed.
         • Clicking the Dock icon starts an area capture.
         • After a couple of quiet seconds the stack shrinks into a little box. Click it to open the stack again.
+        • Use Claude Code? ✨ Tidy on the stack asks Claude to name your screenshots and file them into folders. You check every suggestion first.
 
         I switched off the macOS floating thumbnail so you don't get two previews.
         """
