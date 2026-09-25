@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Combine
 import QuickLookThumbnailing
 import SwiftUI
@@ -11,12 +12,17 @@ final class Shot: ObservableObject, Identifiable {
     let created: Date
     @Published var thumbnail: NSImage?
     @Published var pixelSize: CGSize?
+    /// Length in seconds, for recordings.
+    @Published var duration: Double?
     @Published var toast: String?
     /// Annotations and beautify settings, kept beside the file until you flatten them.
     @Published var markup: Markup?
     private(set) var modified: Date?
 
     var isVideo: Bool { ["mov", "mp4", "m4v"].contains(url.pathExtension.lowercased()) }
+    var isGIF: Bool { url.pathExtension.lowercased() == "gif" }
+    /// A plain image: something you can annotate, pin or read text from.
+    var isStill: Bool { !isVideo && !isGIF }
     var exists: Bool { FileManager.default.fileExists(atPath: url.path) }
 
     init(url: URL, created: Date = Date()) {
@@ -59,6 +65,7 @@ final class Shot: ObservableObject, Identifiable {
            let h = props[kCGImagePropertyPixelHeight] as? Int {
             pixelSize = CGSize(width: w, height: h)
         }
+        if isVideo { loadVideoInfo() }
         if hasMarkup, let markup, let base = MarkupRenderer.loadImage(url),
            let rendered = MarkupRenderer.render(base: base, markup: markup) {
             thumbnail = NSImage(cgImage: rendered, size: NSSize(width: rendered.width, height: rendered.height))
@@ -78,6 +85,17 @@ final class Shot: ObservableObject, Identifiable {
                 } else if self.thumbnail == nil {
                     self.thumbnail = NSImage(contentsOf: self.url)
                 }
+            }
+        }
+    }
+
+    private func loadVideoInfo() {
+        let asset = AVURLAsset(url: url)
+        Task {
+            if let length = try? await asset.load(.duration) { duration = length.seconds }
+            if let track = try? await asset.loadTracks(withMediaType: .video).first,
+               let size = try? await track.load(.naturalSize) {
+                pixelSize = size
             }
         }
     }
@@ -105,6 +123,8 @@ final class ShotStore: ObservableObject {
     /// Newest first.
     @Published private(set) var shots: [Shot] = []
     @Published var expanded = false
+    /// Shrunk down to a little box in the corner after a quiet spell. Click it to open the stack again.
+    @Published var minimized = false
     /// Things you dismissed, so you can bring them back from the menu.
     @Published private(set) var recent: [Shot] = []
     /// Set by the panel controller based on the screen it lives on.
@@ -118,7 +138,10 @@ final class ShotStore: ObservableObject {
         guard !shots.contains(where: { $0.url == url }) else { return }
         recent.removeAll { $0.url == url }
         let shot = Shot(url: url, created: created)
-        withAnimation(spring) { shots.insert(shot, at: 0) }
+        withAnimation(spring) {
+            shots.insert(shot, at: 0)
+            minimized = false
+        }
     }
 
     /// Takes it off the stack. The file stays where it is.
@@ -150,6 +173,11 @@ final class ShotStore: ObservableObject {
         recent.removeAll { $0 === shot }
     }
 
+    func setMinimized(_ on: Bool) {
+        guard on != minimized else { return }
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) { minimized = on }
+    }
+
     func clearAll() {
         for shot in shots { shot.toast = nil }
         recent.insert(contentsOf: shots, at: 0)
@@ -163,13 +191,19 @@ final class ShotStore: ObservableObject {
     func restore(_ shot: Shot) {
         recent.removeAll { $0 === shot }
         guard shot.exists else { return }
-        withAnimation(spring) { shots.insert(shot, at: 0) }
+        withAnimation(spring) {
+            shots.insert(shot, at: 0)
+            minimized = false
+        }
     }
 
     func restoreAllRecent() {
         let items = recent.filter(\.exists)
         recent.removeAll()
-        withAnimation(spring) { shots.insert(contentsOf: items, at: 0) }
+        withAnimation(spring) {
+            shots.insert(contentsOf: items, at: 0)
+            minimized = false
+        }
     }
 
     func fileChanged(_ url: URL) {

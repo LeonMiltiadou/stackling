@@ -7,6 +7,11 @@ enum Actions {
     static var store: ShotStore { .shared }
 
     static func copy(_ shot: Shot) {
+        if shot.isGIF {
+            writeGIF(shot.url)
+            store.finish(shot, message: "Copied")
+            return
+        }
         let pb = NSPasteboard.general
         pb.clearContents()
         let item = NSPasteboardItem()
@@ -22,6 +27,62 @@ enum Actions {
         item.setString(file.absoluteString, forType: .fileURL)
         pb.writeObjects([item])
         store.finish(shot, message: "Copied")
+    }
+
+    /// Makes a GIF of a recording and puts it on the clipboard.
+    static func copyGIF(_ shot: Shot) {
+        shot.flash("Making GIF…", for: 120)
+        Task {
+            do {
+                let gif = try await GIFMaker.cached(for: shot)
+                writeGIF(gif)
+                store.finish(shot, message: "GIF copied")
+            } catch {
+                shot.flash("Couldn't make a GIF")
+            }
+        }
+    }
+
+    /// Saves a GIF next to the recording. It lands on the stack as its own card.
+    static func saveGIF(_ shot: Shot) {
+        shot.flash("Making GIF…", for: 120)
+        let video = shot.url
+        Task {
+            do {
+                let gif = try await GIFMaker.cached(for: shot)
+                var out = video.deletingPathExtension().appendingPathExtension("gif")
+                var n = 2
+                while FileManager.default.fileExists(atPath: out.path) {
+                    out = video.deletingLastPathComponent()
+                        .appendingPathComponent("\(video.deletingPathExtension().lastPathComponent) (\(n)).gif")
+                    n += 1
+                }
+                try FileManager.default.copyItem(at: gif, to: out)
+                shot.flash("GIF saved")
+                store.add(out)
+            } catch {
+                shot.flash("Couldn't make a GIF")
+            }
+        }
+    }
+
+    /// GIF data for apps that paste images (browsers, Slack), plus the file for apps that take files.
+    private static func writeGIF(_ url: URL) {
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        let item = NSPasteboardItem()
+        if let data = try? Data(contentsOf: url) {
+            item.setData(data, forType: NSPasteboard.PasteboardType(UTType.gif.identifier))
+        }
+        item.setString(url.absoluteString, forType: .fileURL)
+        pb.writeObjects([item])
+    }
+
+    static func openInQuickTime(_ shot: Shot) {
+        let quickTime = URL(fileURLWithPath: "/System/Applications/QuickTime Player.app")
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.open([shot.url], withApplicationAt: quickTime, configuration: config)
     }
 
     /// Writes the annotations into the image file for good and removes the sidecar.
@@ -71,10 +132,10 @@ enum Actions {
         }.value
     }
 
-    /// Opens the Stackshot editor. Videos open in their default app.
+    /// Opens the Stackshot editor. Recordings and GIFs open in the preview instead.
     static func edit(_ shot: Shot) {
-        if shot.isVideo {
-            NSWorkspace.shared.open(shot.url)
+        if !shot.isStill {
+            PreviewWindowController.show(shot)
             return
         }
         EditorWindowController.open(shot)

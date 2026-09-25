@@ -79,7 +79,7 @@ final class DragSurfaceView: NSView, NSDraggingSource {
             recheckObserver.map(NotificationCenter.default.removeObserver)
             recheckObserver = nil
         } else if recheckObserver == nil {
-            // The panel ignores the mouse while faded, so no "entered" event arrives
+            // The panel ignores the mouse while tucked away, so no "entered" event arrives
             // if the pointer was already sitting on the card when it wakes up.
             recheckObserver = NotificationCenter.default.addObserver(
                 forName: Self.recheckHover, object: nil, queue: .main

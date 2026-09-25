@@ -8,6 +8,8 @@ final class CaptureController {
     static let shared = CaptureController()
 
     enum Mode { case area, window }
+    /// What happens once you've picked: save a screenshot, or start recording it.
+    enum Purpose { case screenshot, recording }
 
     struct PickableWindow {
         let id: CGWindowID
@@ -21,12 +23,14 @@ final class CaptureController {
     private var overlays: [CaptureOverlayWindow] = []
     private var previousApp: NSRunningApplication?
     private var busy = false
+    private(set) var purpose: Purpose = .screenshot
 
     // MARK: Entry points
 
-    func start(_ mode: Mode) {
+    func start(_ mode: Mode, for purpose: Purpose = .screenshot) {
         guard !busy, ensurePermission() else { return }
         busy = true
+        self.purpose = purpose
         rememberFrontApp()
         Task {
             do {
@@ -155,12 +159,23 @@ final class CaptureController {
 
     func finishArea(_ frozen: Frozen, pixelRect: CGRect) {
         finish()
+        if purpose == .recording {
+            let scale = frozen.screen.backingScaleFactor
+            let points = CGRect(x: pixelRect.minX / scale, y: pixelRect.minY / scale,
+                                width: pixelRect.width / scale, height: pixelRect.height / scale).integral
+            Recorder.shared.start(.area(frozen.screen, points))
+            return
+        }
         guard let crop = frozen.image.cropping(to: pixelRect.integral) else { return }
         save(crop, pixelScale: frozen.screen.backingScaleFactor)
     }
 
     func finishWindow(_ window: PickableWindow, frozen: Frozen, pixelRect: CGRect, withShadow: Bool) {
         finish()
+        if purpose == .recording {
+            Recorder.shared.start(.window(window.id))
+            return
+        }
         let scale = frozen.screen.backingScaleFactor
         Task {
             // A fresh capture of just that window: clean even if something was covering it.
@@ -296,6 +311,8 @@ final class CaptureOverlayView: NSView {
     private var lastDrag: CGPoint?
     private var hovered: (window: CaptureController.PickableWindow, rect: CGRect)?
 
+    private var recording: Bool { controller.purpose == .recording }
+
     /// Pixels in the frozen image per point in this view.
     private var px: CGFloat { CGFloat(frozen.image.width) / max(bounds.width, 1) }
 
@@ -358,7 +375,9 @@ final class CaptureOverlayView: NSView {
             border.stroke()
             let size = "\(Int(h.rect.width * px)) × \(Int(h.rect.height * px))"
             drawBadge("\(h.window.app)  ·  \(size)", at: CGPoint(x: h.rect.midX, y: h.rect.midY), centered: true)
-            drawHint("Click a window to capture it  ·  ⌥ click for no shadow  ·  Space for area  ·  Esc to cancel")
+            drawHint(recording
+                ? "Click a window to record it  ·  Space for area  ·  Esc to cancel"
+                : "Click a window to capture it  ·  ⌥ click for no shadow  ·  Space for area  ·  Esc to cancel")
             return
         }
 
@@ -372,7 +391,9 @@ final class CaptureOverlayView: NSView {
             if badgePoint.y > bounds.height - 40 { badgePoint.y = sel.maxY - 34 }
             drawBadge(size, at: badgePoint, alignRight: true)
         } else {
-            drawHint("Drag to capture an area  ·  Space for window  ·  Esc to cancel")
+            drawHint(recording
+                ? "Drag to record an area  ·  Click to record the whole screen  ·  Space for window  ·  Esc to cancel"
+                : "Drag to capture an area  ·  Space for window  ·  Esc to cancel")
         }
 
         if let m = mouse, !spaceHeld { drawLoupe(at: m) }
@@ -529,6 +550,8 @@ final class CaptureOverlayView: NSView {
         dragStart = nil
         selection = nil
         if sel.width < 3 || sel.height < 3 {
+            // A plain click records the whole screen.
+            if recording { controller.finishArea(frozen, pixelRect: pixelRect(bounds)); return }
             needsDisplay = true
             return
         }

@@ -26,6 +26,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .sink { shots in NSApp.dockTile.badgeLabel = shots.isEmpty ? nil : "\(shots.count)" }
             .store(in: &bag)
 
+        // While recording, the menu bar icon turns into a red stop button.
+        Recorder.shared.$startedAt
+            .receive(on: RunLoop.main)
+            .sink { [weak self] started in self?.showRecordingIcon(started != nil) }
+            .store(in: &bag)
+
         // The native thumbnail delays saving the file and would double up with our stack.
         if Prefs.nativeThumbnailEnabled && !UserDefaults.standard.bool(forKey: "leaveNativeThumbnail") {
             Prefs.setNativeThumbnail(false)
@@ -60,8 +66,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             keys.unregister(.four)
             if !NativeShortcuts.areaShortcutEnabled { NativeShortcuts.setAreaShortcut(enabled: true) }
         }
+        keys.register(.seven) { Self.toggleRecording() }
         keys.register(.eight) { CaptureController.shared.start(.window) }
         keys.register(.nine) { CaptureController.shared.captureFullScreen() }
+    }
+
+    static func toggleRecording() {
+        if Recorder.shared.isRecording {
+            Recorder.shared.stop()
+        } else {
+            CaptureController.shared.start(.area, for: .recording)
+        }
+    }
+
+    private func showRecordingIcon(_ recording: Bool) {
+        guard let button = statusItem.button else { return }
+        if recording {
+            let config = NSImage.SymbolConfiguration(paletteColors: [.white, .systemRed])
+            button.image = NSImage(systemSymbolName: "stop.circle.fill", accessibilityDescription: "Stop recording")?
+                .withSymbolConfiguration(config)
+            button.image?.isTemplate = false
+        } else {
+            button.image = NSImage(systemSymbolName: "square.stack.3d.up.fill", accessibilityDescription: "Stackshot")
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -185,7 +212,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(area)
 
         menu.addItem(fadeItem())
-        menu.addItem(opacityItem())
 
         let login = item("Open at Login") {
             let service = SMAppService.mainApp
@@ -200,9 +226,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func fadeItem() -> NSMenuItem {
-        let parent = NSMenuItem(title: "Fade When Idle", action: nil, keyEquivalent: "")
+        let parent = NSMenuItem(title: "Shrink When Idle", action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        for (title, seconds) in [("After 2 seconds", 2.0), ("After 5 seconds", 5), ("After 10 seconds", 10), ("After 30 seconds", 30), ("Never", 0)] {
+        for (title, seconds) in [("After 1 second", 1.0), ("After 2 seconds", 2), ("After 5 seconds", 5), ("After 10 seconds", 10), ("Never", 0)] {
             let entry = item(title) { [weak self] in
                 Settings.fadeDelay = seconds
                 self?.panel.poke()
@@ -210,23 +236,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             entry.state = Settings.fadeDelay == seconds ? .on : .off
             sub.addItem(entry)
         }
-        parent.submenu = sub
-        return parent
-    }
-
-    private func opacityItem() -> NSMenuItem {
-        let parent = NSMenuItem(title: "When Faded", action: nil, keyEquivalent: "")
-        let sub = NSMenu()
-        for (title, value) in [("Invisible", 0.0), ("Barely there (10%)", 0.1), ("Faint (20%)", 0.2), ("Half (50%)", 0.5)] {
-            let entry = item(title) { [weak self] in
-                Settings.fadedOpacity = value
-                self?.panel.poke()
-            }
-            entry.state = abs(Settings.fadedOpacity - value) < 0.01 ? .on : .off
-            sub.addItem(entry)
-        }
         sub.addItem(.separator())
-        let note = NSMenuItem(title: "Hover the corner to bring it back", action: nil, keyEquivalent: "")
+        let note = NSMenuItem(title: "Click the little box to open the stack again", action: nil, keyEquivalent: "")
         note.isEnabled = false
         sub.addItem(note)
         parent.submenu = sub
@@ -234,10 +245,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func addCaptureItems(to menu: NSMenu) {
+        if Recorder.shared.isRecording {
+            menu.addItem(item("Stop Recording", hint: "⇧⌘7") { Recorder.shared.stop() })
+            menu.addItem(item("Throw Away Recording") { Recorder.shared.stop(discard: true) })
+            menu.addItem(.separator())
+        }
         menu.addItem(item("Capture Area", hint: takeOverArea ? "⇧⌘4" : nil) { CaptureController.shared.start(.area) })
         menu.addItem(item("Capture Window", hint: "⇧⌘8") { CaptureController.shared.start(.window) })
         menu.addItem(item("Capture Full Screen", hint: "⇧⌘9") { CaptureController.shared.captureFullScreen() })
-        menu.addItem(item("Record or Use macOS Toolbar…", hint: "⇧⌘5") { Capture.toolbar.run() })
+        if !Recorder.shared.isRecording {
+            menu.addItem(item("Record Screen…", hint: "⇧⌘7") { CaptureController.shared.start(.area, for: .recording) })
+        }
+        menu.addItem(item("macOS Screenshot Toolbar…", hint: "⇧⌘5") { Capture.toolbar.run() })
     }
 
     private func saveLocationItem() -> NSMenuItem {
@@ -304,7 +323,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ⇧⌘4  Area, on a frozen screen with a pixel loupe
         ⇧⌘8  Window
         ⇧⌘9  Full screen
-        ⇧⌘3 and ⇧⌘5 still work as usual (⇧⌘5 for recording).
+        ⇧⌘7  Record the screen (press again to stop)
+        ⇧⌘3 and ⇧⌘5 still work as usual.
 
         Each shot lands in a stack in the bottom-left corner and stays there until you do something with it: copy, drag it into an app, edit, pin, grab its text, or dismiss it.
 
@@ -314,7 +334,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         • Hold ⌥ while copying to keep the card.
         • Dismissed cards live in the menu bar under Recently Dismissed.
         • Clicking the Dock icon starts an area capture.
-        • After a few quiet seconds the stack fades. Hover the corner to bring it back.
+        • After a couple of quiet seconds the stack shrinks into a little box. Click it to open the stack again.
 
         I switched off the macOS floating thumbnail so you don't get two previews.
         """
