@@ -18,6 +18,7 @@ enum MainMenu {
         menu.addItem(withTitle: "About Stackling", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(settingsItem())
+        menu.addItem(libraryItem())
         menu.addItem(.separator())
         menu.addItem(ClosureMenuItem(title: "Uninstall Stackling…") { Uninstaller.confirmAndRun() })
         menu.addItem(.separator())
@@ -49,6 +50,14 @@ enum MainMenu {
     }
 
     /// "Settings…" with ⌘, as in every Mac app. Shared with the menu bar icon's menu.
+    /// Stackling's library window, ⌘L.
+    static func libraryItem() -> NSMenuItem {
+        let item = ClosureMenuItem(title: "Library") { LibraryWindowController.show() }
+        item.keyEquivalent = "l"
+        item.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)
+        return item
+    }
+
     static func settingsItem() -> NSMenuItem {
         let item = ClosureMenuItem(title: "Settings…") { SettingsWindowController.show() }
         item.keyEquivalent = ","
@@ -92,7 +101,10 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         addStackItems(to: menu)
         menu.addItem(recentlyDismissedItem())
         menu.addItem(.separator())
-        menu.addItem(ClosureMenuItem(title: "Open Library") { NSWorkspace.shared.open(ScreenshotPrefs.screenshotFolder) })
+        let library = ClosureMenuItem(title: "Open Library") { LibraryWindowController.show() }
+        library.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)
+        library.toolTip = "Every shot in one place, searchable by the words inside them."
+        menu.addItem(library)
         let tidy = ClosureMenuItem(title: "Tidy with Claude…") { GroomWindowController.show() }
         tidy.image = NSImage(systemSymbolName: "sparkles", accessibilityDescription: nil)
         tidy.toolTip = "Claude suggests a name and a folder for each loose screenshot. You review everything first."
@@ -108,6 +120,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         addCaptureItems(to: menu)
         menu.addItem(.separator())
+        menu.addItem(ClosureMenuItem(title: "Open Library") { LibraryWindowController.show() })
         menu.addItem(ClosureMenuItem(title: "Add to Stack…") { Importer.chooseFiles() })
         if Importer.clipboardHasSomething {
             menu.addItem(ClosureMenuItem(title: "Paste to Stack") { Importer.pasteFromClipboard() })
@@ -238,9 +251,9 @@ enum WelcomeAlert {
         • Edits stay editable. Copy and drag include them automatically.
         • Hold ⌥ while copying to keep the card.
         • Dismissed cards live in the menu bar under Recently Dismissed.
-        • Clicking the Dock icon starts an area capture.
         • After a couple of quiet seconds the stack shrinks into a little box. Click it to open the stack again.
         • Use Claude Code? ✨ Tidy on the stack asks Claude to name your screenshots and file them into folders. You check every suggestion first.
+        • Click the Dock icon (or press ⌘L) for the library: every shot in one place, searchable by the words inside them.
 
         I switched off the macOS floating thumbnail so you don't get two previews.
         """

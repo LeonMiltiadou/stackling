@@ -36,6 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         restoreAndPersistStack()
         watcher.start()
         scheduleTidying()
+        // Start the library a little after launch, so the words in your shots are ready to search when you look.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { LibraryIndex.shared.start() }
         observeSettings()
         CaptureController.shared.excludedWindowNumbers = { [weak self] in
             [self?.panel.windowNumber].compactMap { $0 }
@@ -51,10 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Importer.add(urls, from: "open")
     }
 
-    /// Clicking the Dock icon starts an area capture.
+    /// Clicking the Dock icon opens the library, like any Mac app's main window. Capturing stays on ⇧⌘4,
+    /// and the Dock icon's right-click menu has every capture option.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        Log.app.info("dock.clicked action=capture-area")
-        CaptureController.shared.start(.area)
+        Log.app.info("dock.clicked action=open-library")
+        LibraryWindowController.show()
         return false
     }
 

@@ -64,7 +64,7 @@ enum ClaudeCode {
         let frames = await Self.stills(for: batch, in: stills)
 
         let output = try await run(claude, arguments: [
-            "-p", prompt(for: batch, existingFolders: existingFolders, stills: frames),
+            "-p", prompt(for: batch, in: folder, existingFolders: existingFolders, stills: frames),
             "--model", model,
             "--tools", "Read,Glob",
             "--allowedTools", "Read,Glob",
@@ -82,14 +82,16 @@ enum ClaudeCode {
 
     // MARK: Prompt
 
-    static func prompt(for files: [URL], existingFolders: [String], stills: [URL: URL] = [:]) -> String {
+    static func prompt(for files: [URL], in folder: URL? = nil, existingFolders: [String], stills: [URL: URL] = [:]) -> String {
+        let folder = folder ?? commonFolder(of: files)
         let folders = existingFolders.isEmpty ? "(none yet)" : existingFolders.map { "- \($0)" }.joined(separator: "\n")
         let list = files.map { file in
-            guard let still = stills[file] else { return "- \(file.lastPathComponent)" }
-            return "- \(file.lastPathComponent) (a recording: look at this frame from it instead: \(still.path))"
+            let name = relativePath(of: file, in: folder)
+            guard let still = stills[file] else { return "- \(name)" }
+            return "- \(name) (a recording: look at this frame from it instead: \(still.path))"
         }.joined(separator: "\n")
         return """
-        You're tidying a software developer's screenshots and screen recordings. They're all in the current folder.
+        You're tidying a software developer's screenshots and screen recordings. Paths below are relative to the current folder.
 
         For each file below, open it with the Read tool to see what it shows. For recordings, open the frame \
         listed next to it, since videos can't be opened directly; name the recording after what the frame shows.
@@ -114,6 +116,24 @@ enum ClaudeCode {
     "file":{"type":"string"},"name":{"type":"string"},"folder":{"type":"string"},"reason":{"type":"string"}},\
     "required":["file","name","folder","reason"]}}},"required":["files"]}
     """
+
+    // MARK: Paths
+
+    /// `file`'s path inside `folder` ("Bugs/a.png"), or its full path if it's somewhere else.
+    static func relativePath(of file: URL, in folder: URL) -> String {
+        let base = folder.standardizedFileURL.path, path = file.standardizedFileURL.path
+        return path.hasPrefix(base + "/") ? String(path.dropFirst(base.count + 1)) : path
+    }
+
+    /// The deepest folder that contains every one of `files`, so Claude can be pointed at one place.
+    static func commonFolder(of files: [URL]) -> URL {
+        let parts = files.map { $0.deletingLastPathComponent().standardizedFileURL.pathComponents }
+        guard var common = parts.first else { return FileManager.default.homeDirectoryForCurrentUser }
+        for p in parts.dropFirst() {
+            common = Array(zip(common, p).prefix { $0 == $1 }.map(\.0))
+        }
+        return URL(fileURLWithPath: NSString.path(withComponents: common.isEmpty ? ["/"] : common), isDirectory: true)
+    }
 
     // MARK: Stills from recordings
 

@@ -12,7 +12,8 @@ enum Library {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/Stackling", isDirectory: true)
     }
 
-    static var archive: URL { root.appendingPathComponent("Archive", isDirectory: true) }
+    nonisolated static let archiveName = "Archive"
+    static var archive: URL { root.appendingPathComponent(archiveName, isDirectory: true) }
 
     /// First launch of a version with a library: screenshots stop landing on the Desktop.
     /// Only moves the save location if it was still the macOS default.
@@ -42,7 +43,7 @@ enum Library {
             return []
         }
         return items
-            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true && $0.lastPathComponent != "Archive" }
+            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true && $0.lastPathComponent != archiveName }
             .sorted { ($0.modificationDate ?? .distantPast) > ($1.modificationDate ?? .distantPast) }
     }
 

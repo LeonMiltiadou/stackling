@@ -61,6 +61,7 @@ Requires macOS 14 (Sonoma) or newer. Works on Apple Silicon and Intel Macs.
 | `⇧⌘9` | Capture the whole screen |
 | `⇧⌘7` | Record your screen. Press it again to stop |
 | `⇧⌘3` / `⇧⌘5` | The Mac's own tools still work, and their shots land in the stack too |
+| Dock icon or `⌘L` | Open the library of everything you've captured |
 
 Each new shot slides into the stack. **Hover a card** to see what you can do with it:
 
@@ -99,6 +100,19 @@ Pin, Save Edits Into Image, Share and Copy File Path.
 Drag the stack by its **✥** handle and it stays wherever you leave it. Drop it near the corner and it
 snaps back, or click **↙**. Closed a card by accident? The menu bar icon has **Recently Dismissed**.
 </details>
+
+## The library
+
+Click Stackling's **Dock icon** (or press `⌘L`) for the library: every screenshot, recording and GIF in one
+place, grouped into Last 7 Days, Screenshots, Recordings, GIFs, your folders and the Archive.
+
+- **Search reads the words inside your shots.** Type "cart.total" and last week's error screenshot turns up.
+  Stackling reads each shot once, quietly in the background, on your Mac.
+- **Double-click** to open, **drag** a shot into any app, **right-click** for everything else.
+- **Select several** (`⌘`-click or `⇧`-click) to file them into a folder, add them to the stack, move them to
+  the Trash, or ✨ **Tidy** just those with Claude.
+
+<p align="center"><img src="site/images/library.jpg" width="720" alt="The Stackling library window"></p>
 
 ## Marking up
 

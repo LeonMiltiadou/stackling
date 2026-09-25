@@ -9,13 +9,17 @@ import SwiftUI
 final class GroomWindowController: NSWindowController, NSWindowDelegate {
     private static var shared: GroomWindowController?
 
-    static func show() {
+    /// Tidies the loose screenshots in the save folder, or just `files` when given (a selection in the library).
+    static func show(files: [URL]? = nil) {
         if let shared {
-            NSApp.activate()
-            shared.window?.makeKeyAndOrderFront(nil)
-            return
+            guard files != nil else {
+                NSApp.activate()
+                shared.window?.makeKeyAndOrderFront(nil)
+                return
+            }
+            shared.close()
         }
-        let controller = GroomWindowController()
+        let controller = GroomWindowController(model: GroomModel(files: files))
         shared = controller
         NSApp.activate()
         controller.window?.center()
@@ -65,10 +69,11 @@ struct GroomEntry: Identifiable {
 /// Turning Claude's suggestions into safe file names and destinations.
 enum GroomPlan {
     /// Pairs suggestions with the files they're about, ignoring any that name a file we didn't send.
-    static func entries(for files: [URL], suggestions: [ClaudeCode.Suggestion]) -> [GroomEntry] {
+    static func entries(for files: [URL], suggestions: [ClaudeCode.Suggestion], in folder: URL? = nil) -> [GroomEntry] {
+        let folder = folder ?? ClaudeCode.commonFolder(of: files)
         let byName = Dictionary(suggestions.map { ($0.file, $0) }, uniquingKeysWith: { first, _ in first })
         return files.compactMap { file in
-            guard let s = byName[file.lastPathComponent] else { return nil }
+            guard let s = byName[ClaudeCode.relativePath(of: file, in: folder)] ?? byName[file.lastPathComponent] else { return nil }
             return GroomEntry(file: file, name: cleanName(s.name), folder: cleanFolder(s.folder), reason: s.reason)
         }
     }
@@ -84,7 +89,7 @@ enum GroomPlan {
     /// Like `cleanName`, and never the library's own Archive folder.
     static func cleanFolder(_ raw: String) -> String {
         let folder = cleanName(raw)
-        return folder.caseInsensitiveCompare("Archive") == .orderedSame ? "Archived" : folder
+        return folder.caseInsensitiveCompare(Library.archiveName) == .orderedSame ? "Archived" : folder
     }
 
     /// Where an entry ends up: `root/folder/name.ext`, made unique if something's already there.
@@ -116,19 +121,28 @@ final class GroomModel: ObservableObject {
     private let inbox: URL
     private let root: URL
 
-    init(inbox: URL? = nil, root: URL? = nil) {
+    /// Specific files to tidy, instead of the loose captures in the inbox.
+    private let chosen: [URL]?
+
+    init(inbox: URL? = nil, root: URL? = nil, files: [URL]? = nil) {
         self.inbox = inbox ?? ScreenshotPrefs.screenshotFolder
         self.root = root ?? Library.root
+        self.chosen = files
     }
 
     var selectedCount: Int { entries.filter(\.include).count }
 
     func start() {
-        let folder = inbox
-        let files = Library.looseCaptures(in: folder)
-            .sorted { $0.created > $1.created }
-            .prefix(ClaudeCode.maxFilesPerRun)
-            .map(\.url)
+        let files: [URL]
+        if let chosen {
+            files = Array(chosen.prefix(ClaudeCode.maxFilesPerRun))
+        } else {
+            files = Library.looseCaptures(in: inbox)
+                .sorted { $0.created > $1.created }
+                .prefix(ClaudeCode.maxFilesPerRun)
+                .map(\.url)
+        }
+        let folder = chosen == nil ? inbox : ClaudeCode.commonFolder(of: files)
         guard !files.isEmpty else {
             phase = .empty
             return
@@ -143,7 +157,7 @@ final class GroomModel: ObservableObject {
                     model: AppSettings.claudeModel
                 )
                 guard !Task.isCancelled else { return }
-                entries = GroomPlan.entries(for: files, suggestions: suggestions)
+                entries = GroomPlan.entries(for: files, suggestions: suggestions, in: folder)
                 phase = entries.isEmpty ? .failed("Claude didn't suggest anything for these files.") : .review
                 loadThumbnails()
             } catch {

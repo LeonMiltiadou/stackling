@@ -36,3 +36,27 @@ import Testing
         #expect(GroomPlan.destination(for: entry, root: root).lastPathComponent == "Screenshot 1.png")
     }
 }
+
+@Suite struct GroomPathTests {
+    @Test func commonFolderIsTheDeepestSharedParent() {
+        let files = ["/L/Stackling/Bugs/a.png", "/L/Stackling/Design/b.png", "/L/Stackling/c.png"].map { URL(fileURLWithPath: $0) }
+        #expect(ClaudeCode.commonFolder(of: files).path == "/L/Stackling")
+    }
+
+    @Test func relativePathsKeepSubfolders() {
+        let root = URL(fileURLWithPath: "/L/Stackling")
+        #expect(ClaudeCode.relativePath(of: URL(fileURLWithPath: "/L/Stackling/Bugs/a.png"), in: root) == "Bugs/a.png")
+        #expect(ClaudeCode.relativePath(of: URL(fileURLWithPath: "/elsewhere/x.png"), in: root) == "/elsewhere/x.png")
+    }
+
+    @Test func suggestionsMatchFilesInSubfolders() {
+        let root = URL(fileURLWithPath: "/L/Stackling")
+        let files = [URL(fileURLWithPath: "/L/Stackling/Bugs/a.png"), URL(fileURLWithPath: "/L/Stackling/Design/a.png")]
+        let suggestions = [
+            ClaudeCode.Suggestion(file: "Design/a.png", name: "settings", folder: "Design", reason: ""),
+            ClaudeCode.Suggestion(file: "Bugs/a.png", name: "crash", folder: "Bugs", reason: ""),
+        ]
+        let entries = GroomPlan.entries(for: files, suggestions: suggestions, in: root)
+        #expect(entries.map(\.name) == ["crash", "settings"])
+    }
+}
