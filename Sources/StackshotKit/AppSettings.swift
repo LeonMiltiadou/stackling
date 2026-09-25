@@ -23,9 +23,9 @@ enum DefaultsKey {
 enum AppSettings {
     private static var d: UserDefaults { .standard }
 
-    /// Defaults for settings that aren't simply false or zero.
-    static func registerDefaults() {
-        d.register(defaults: [
+    /// Defaults for settings that aren't simply false or zero. Takes a store so tests can use a throwaway one.
+    static func registerDefaults(in defaults: UserDefaults = .standard) {
+        defaults.register(defaults: [
             DefaultsKey.shrinkDelay: 2.0,
             DefaultsKey.tidyAfterDays: 7,
             DefaultsKey.tidyAction: Library.TidyAction.archive.rawValue,
@@ -66,5 +66,17 @@ enum AppSettings {
     static var keepNativeThumbnail: Bool {
         get { d.bool(forKey: DefaultsKey.keepNativeThumbnail) }
         set { d.set(newValue, forKey: DefaultsKey.keepNativeThumbnail) }
+    }
+
+    /// The welcome alert has been shown, so later launches stay quiet.
+    static var hasSeenWelcome: Bool {
+        get { d.bool(forKey: DefaultsKey.welcomed) }
+        set { d.set(newValue, forKey: DefaultsKey.welcomed) }
+    }
+
+    /// The one-time switch from saving on the Desktop to the library has been considered.
+    static var libraryAdopted: Bool {
+        get { d.bool(forKey: DefaultsKey.libraryAdopted) }
+        set { d.set(newValue, forKey: DefaultsKey.libraryAdopted) }
     }
 }
