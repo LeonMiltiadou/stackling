@@ -2,129 +2,110 @@ import AppKit
 import UniformTypeIdentifiers
 import Vision
 
+/// Everything you can do with a card, from its buttons, its menu, its keys, the editor and the preview.
 @MainActor
 enum Actions {
     static var store: ShotStore { .shared }
 
+    /// Making a GIF can take a while for a long recording. The "working" message gives up after this.
+    static let gifToastTimeout: TimeInterval = 120
+    /// Same for reading text, which is quicker.
+    static let textToastTimeout: TimeInterval = 10
+
     static func copy(_ shot: Shot) {
-        writeToPasteboard(shot)
+        note("copy", shot)
+        Clipboard.write(shot: shot)
         store.finish(shot, message: "Copied")
     }
 
     /// Image data (with edits) for apps that paste pictures, plus the file for apps that take files.
     static func writeToPasteboard(_ shot: Shot) {
-        if shot.isGIF {
-            writeGIF(shot.url)
-            return
-        }
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        let item = NSPasteboardItem()
-        let file = shot.isVideo ? shot.url : shot.exportURL()
-        if !shot.isVideo, let data = try? Data(contentsOf: file) {
-            let type = UTType(filenameExtension: file.pathExtension) ?? .png
-            if type.conforms(to: .png) {
-                item.setData(data, forType: .png)
-            } else if let image = NSImage(data: data), let tiff = image.tiffRepresentation {
-                item.setData(tiff, forType: .tiff)
-            }
-        }
-        item.setString(file.absoluteString, forType: .fileURL)
-        pb.writeObjects([item])
+        Clipboard.write(shot: shot)
     }
 
     /// Files a shot into a library folder and takes it off the stack.
     static func file(_ shot: Shot, into folder: URL) {
+        note("file", shot)
         guard Library.file(shot, into: folder) else { return }
         store.finish(shot, message: "Filed in \(folder.lastPathComponent)")
     }
 
     static func fileIntoNewFolder(_ shot: Shot) {
+        note("file-into-new-folder", shot)
         guard let folder = Library.askForNewFolder() else { return }
         file(shot, into: folder)
     }
 
     /// Makes a GIF of a recording and puts it on the clipboard.
     static func copyGIF(_ shot: Shot) {
-        shot.flash("Making GIF…", for: 120)
+        note("copy-gif", shot)
+        shot.flashWorking("Making GIF…", timeout: gifToastTimeout)
         Task {
             do {
                 let gif = try await GIFMaker.cached(for: shot)
-                writeGIF(gif)
+                Clipboard.writeGIF(at: gif)
                 store.finish(shot, message: "GIF copied")
             } catch {
-                shot.flash("Couldn't make a GIF")
+                Log.actions.error("copy-gif.failed file=\(shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                shot.flashFailed("Couldn't make a GIF")
             }
         }
     }
 
     /// Saves a GIF next to the recording. It lands on the stack as its own card.
     static func saveGIF(_ shot: Shot) {
-        shot.flash("Making GIF…", for: 120)
+        note("save-gif", shot)
+        shot.flashWorking("Making GIF…", timeout: gifToastTimeout)
         let video = shot.url
         Task {
             do {
                 let gif = try await GIFMaker.cached(for: shot)
-                var out = video.deletingPathExtension().appendingPathExtension("gif")
-                var n = 2
-                while FileManager.default.fileExists(atPath: out.path) {
-                    out = video.deletingLastPathComponent()
-                        .appendingPathComponent("\(video.deletingPathExtension().lastPathComponent) (\(n)).gif")
-                    n += 1
-                }
+                let out = CaptureFile.freeURL(
+                    for: video.deletingPathExtension().lastPathComponent + ".gif",
+                    in: video.deletingLastPathComponent()
+                )
                 try FileManager.default.copyItem(at: gif, to: out)
-                shot.flash("GIF saved")
+                shot.flashDone("GIF saved")
                 store.add(out)
             } catch {
-                shot.flash("Couldn't make a GIF")
+                Log.actions.error("save-gif.failed file=\(video.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                shot.flashFailed("Couldn't make a GIF")
             }
         }
     }
 
-    /// GIF data for apps that paste images (browsers, Slack), plus the file for apps that take files.
-    private static func writeGIF(_ url: URL) {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        let item = NSPasteboardItem()
-        if let data = try? Data(contentsOf: url) {
-            item.setData(data, forType: NSPasteboard.PasteboardType(UTType.gif.identifier))
-        }
-        item.setString(url.absoluteString, forType: .fileURL)
-        pb.writeObjects([item])
-    }
-
     static func openInQuickTime(_ shot: Shot) {
-        let quickTime = URL(fileURLWithPath: "/System/Applications/QuickTime Player.app")
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = true
-        NSWorkspace.shared.open([shot.url], withApplicationAt: quickTime, configuration: config)
+        note("open-in-quicktime", shot)
+        open(shot.url, with: "/System/Applications/QuickTime Player.app")
     }
 
     /// Writes the annotations into the image file for good and removes the sidecar.
     static func flatten(_ shot: Shot) {
-        guard let markup = shot.markup, !markup.isEmpty,
-              let base = MarkupRenderer.loadImage(shot.url),
-              let rendered = MarkupRenderer.render(base: base, markup: markup) else { return }
+        note("flatten", shot)
+        guard let rendered = shot.renderedWithMarkup() else { return }
         do {
             try MarkupRenderer.writePNG(rendered, to: shot.url, pixelScale: MarkupRenderer.pixelScale(shot.url))
             shot.setMarkup(Markup())
-            shot.flash("Saved into image")
+            shot.flashDone("Saved into image")
         } catch {
+            Log.actions.error("flatten.failed file=\(shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             NSAlert(error: error).runModal()
         }
     }
 
     static func copyText(_ shot: Shot) {
-        shot.flash("Reading text…", for: 10)
+        note("copy-text", shot)
+        shot.flashWorking("Reading text…", timeout: textToastTimeout)
         let url = shot.url
         Task {
             let text = await recognizeText(at: url)
             if let text, !text.isEmpty {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(text, forType: .string)
+                Clipboard.write(string: text)
                 store.finish(shot, message: "Text copied")
             } else {
-                shot.flash("No text found")
+                Log.actions.info("copy-text.empty file=\(url.lastPathComponent, privacy: .public)")
+                // A tick, not a warning: finding nothing isn't an error.
+                shot.flashDone("No text found")
             }
         }
     }
@@ -132,7 +113,10 @@ enum Actions {
     nonisolated static func recognizeText(at url: URL) async -> String? {
         await Task.detached(priority: .userInitiated) {
             guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
-                  let image = CGImageSourceCreateImageAtIndex(src, 0, nil) else { return nil }
+                  let image = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
+                Log.actions.error("copy-text.unreadable file=\(url.lastPathComponent, privacy: .public)")
+                return nil
+            }
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
@@ -140,6 +124,7 @@ enum Actions {
             do {
                 try VNImageRequestHandler(cgImage: image).perform([request])
             } catch {
+                Log.actions.error("copy-text.failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 return nil
             }
             let lines = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
@@ -149,6 +134,7 @@ enum Actions {
 
     /// Opens the Stackshot editor. Recordings and GIFs open in the preview instead.
     static func edit(_ shot: Shot) {
+        note("edit", shot)
         if !shot.isStill {
             PreviewWindowController.show(shot)
             return
@@ -157,33 +143,34 @@ enum Actions {
     }
 
     static func pin(_ shot: Shot) {
+        note("pin", shot)
         guard !shot.isVideo, let image = NSImage(contentsOf: shot.exportURL()) else { return }
         PinWindow.show(image, shot: shot)
         store.finish(shot, message: "Pinned")
     }
 
     static func openInPreview(_ shot: Shot) {
+        note("open-in-preview", shot)
         if shot.isVideo {
             NSWorkspace.shared.open(shot.url)
             return
         }
-        let preview = URL(fileURLWithPath: "/System/Applications/Preview.app")
-        let config = NSWorkspace.OpenConfiguration()
-        config.activates = true
-        NSWorkspace.shared.open([shot.url], withApplicationAt: preview, configuration: config)
+        open(shot.url, with: "/System/Applications/Preview.app")
     }
 
     static func reveal(_ shot: Shot) {
+        note("reveal", shot)
         NSWorkspace.shared.activateFileViewerSelecting([shot.url])
     }
 
     static func copyPath(_ shot: Shot) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(shot.url.path, forType: .string)
-        shot.flash("Path copied")
+        note("copy-path", shot)
+        Clipboard.write(string: shot.url.path)
+        shot.flashDone("Path copied")
     }
 
     static func moveTo(_ shot: Shot) {
+        note("move-to", shot)
         NSApp.activate()
         let panel = NSSavePanel()
         panel.nameFieldStringValue = shot.url.lastPathComponent
@@ -197,14 +184,12 @@ enum Actions {
             if FileManager.default.fileExists(atPath: dest.path) {
                 try FileManager.default.trashItem(at: dest, resultingItemURL: nil)
             }
-            try FileManager.default.moveItem(at: shot.url, to: dest)
-            let sidecar = Markup.sidecarURL(for: shot.url)
-            if FileManager.default.fileExists(atPath: sidecar.path) {
-                try? FileManager.default.moveItem(at: sidecar, to: Markup.sidecarURL(for: dest))
-            }
+            try Library.move(shot.url, to: dest)
             shot.url = dest
+            Log.actions.info("move-to.done dest=\(dest.path, privacy: .public)")
             store.dismiss(shot)
         } catch {
+            Log.actions.error("move-to.failed file=\(shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             NSAlert(error: error).runModal()
         }
     }
@@ -214,8 +199,22 @@ enum Actions {
     }
 
     static func share(_ shot: Shot, with service: NSSharingService) {
+        Log.actions.info("share file=\(shot.url.lastPathComponent, privacy: .public) service=\(service.title, privacy: .public)")
         NSApp.activate()
         service.perform(withItems: [shot.exportURL()])
         store.dismiss(shot)
+    }
+
+    // MARK: Helpers
+
+    private static func open(_ url: URL, with appPath: String) {
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: appPath), configuration: config)
+    }
+
+    /// Logs which action ran on which file.
+    private static func note(_ action: String, _ shot: Shot) {
+        Log.actions.info("\(action, privacy: .public) file=\(shot.url.lastPathComponent, privacy: .public)")
     }
 }

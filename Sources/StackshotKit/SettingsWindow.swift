@@ -6,6 +6,7 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController: NSWindowController {
     private static var shared: SettingsWindowController?
+    static let size = CGSize(width: 520, height: 460)
 
     static func show() {
         let controller = shared ?? SettingsWindowController()
@@ -17,7 +18,7 @@ final class SettingsWindowController: NSWindowController {
 
     private init() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 460),
+            contentRect: NSRect(origin: .zero, size: Self.size),
             styleMask: [.titled, .closable],
             backing: .buffered, defer: false
         )
@@ -43,24 +44,28 @@ final class SettingsModel: ObservableObject {
 
     var shrinkAfter: Double {
         get { AppSettings.shrinkDelay }
-        set { AppSettings.shrinkDelay = newValue; changed() }
+        set { AppSettings.shrinkDelay = newValue; changed("shrinkDelay", newValue) }
     }
 
     var copyOnCapture: Bool {
         get { AppSettings.copyOnCapture }
-        set { AppSettings.copyOnCapture = newValue; changed() }
+        set { AppSettings.copyOnCapture = newValue; changed("copyOnCapture", newValue) }
     }
 
     var takeOverArea: Bool {
-        get { UserDefaults.standard.bool(forKey: "takeOverArea") }
-        set { UserDefaults.standard.set(newValue, forKey: "takeOverArea"); changed() }
+        get { AppSettings.takeOverArea }
+        set { AppSettings.takeOverArea = newValue; changed("takeOverArea", newValue) }
     }
 
     var openAtLogin: Bool {
         get { SMAppService.mainApp.status == .enabled }
         set {
-            if newValue { try? SMAppService.mainApp.register() } else { try? SMAppService.mainApp.unregister() }
-            changed()
+            do {
+                if newValue { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            } catch {
+                Log.app.error("login-item.failed enabled=\(newValue) error=\(error.localizedDescription, privacy: .public)")
+            }
+            changed("openAtLogin", newValue)
         }
     }
 
@@ -68,19 +73,19 @@ final class SettingsModel: ObservableObject {
         get { ScreenshotPrefs.nativeThumbnailEnabled }
         set {
             ScreenshotPrefs.setNativeThumbnail(newValue)
-            UserDefaults.standard.set(newValue, forKey: "leaveNativeThumbnail")
-            changed()
+            AppSettings.keepNativeThumbnail = newValue
+            changed("nativeThumbnail", newValue)
         }
     }
 
     var tidyAfterDays: Int {
         get { AppSettings.tidyAfterDays }
-        set { AppSettings.tidyAfterDays = newValue; changed() }
+        set { AppSettings.tidyAfterDays = newValue; changed("tidyAfterDays", newValue) }
     }
 
     var tidyAction: Library.TidyAction {
         get { AppSettings.tidyAction }
-        set { AppSettings.tidyAction = newValue; changed() }
+        set { AppSettings.tidyAction = newValue; changed("tidyAction", newValue.rawValue) }
     }
 
     var savesToLibrary: Bool { saveFolder.standardizedFileURL == Library.root.standardizedFileURL }
@@ -100,10 +105,12 @@ final class SettingsModel: ObservableObject {
     private func setFolder(_ url: URL) {
         ScreenshotPrefs.setScreenshotFolder(url)
         saveFolder = ScreenshotPrefs.screenshotFolder
-        changed()
+        changed("saveFolder", saveFolder.path)
     }
 
-    private func changed() {
+    /// Tells the app to act on a changed setting, and logs what changed.
+    private func changed(_ name: String, _ value: Any) {
+        Log.app.info("setting.changed name=\(name, privacy: .public) value=\(String(describing: value), privacy: .public)")
         objectWillChange.send()
         NotificationCenter.default.post(name: .stackshotSettingsChanged, object: nil)
     }
@@ -112,7 +119,7 @@ final class SettingsModel: ObservableObject {
 private struct SettingsView: View {
     @ObservedObject var model: SettingsModel
     /// Reopens on the tab you last looked at.
-    @AppStorage("settings.tab") private var tab = "general"
+    @AppStorage(DefaultsKey.settingsTab) private var tab = "general"
 
     var body: some View {
         TabView(selection: $tab) {
@@ -120,7 +127,7 @@ private struct SettingsView: View {
             library.tabItem { Label("Library", systemImage: "folder") }.tag("library")
             shortcuts.tabItem { Label("Shortcuts", systemImage: "keyboard") }.tag("shortcuts")
         }
-        .frame(width: 520, height: 460)
+        .frame(width: SettingsWindowController.size.width, height: SettingsWindowController.size.height)
     }
 
     // MARK: General
@@ -203,20 +210,15 @@ private struct SettingsView: View {
     private var shortcuts: some View {
         Form {
             Section("Capture") {
-                shortcut("⇧⌘4", "Area, on a frozen screen")
-                shortcut("⇧⌘8", "Window")
-                shortcut("⇧⌘9", "Full screen")
-                shortcut("⇧⌘7", "Record the screen (again to stop)")
-                Toggle("Use Stackshot for ⇧⌘4", isOn: Binding(get: { model.takeOverArea }, set: { model.takeOverArea = $0 }))
+                ForEach(HotKeys.Key.allCases, id: \.self) { key in
+                    shortcut(key.label, key.summary)
+                }
+                Toggle("Use Stackshot for \(HotKeys.Key.four.label)", isOn: Binding(get: { model.takeOverArea }, set: { model.takeOverArea = $0 }))
             }
             Section {
-                shortcut("⌘C", "Copy")
-                shortcut("Space  or  E", "Edit, or preview a recording")
-                shortcut("T", "Copy the text")
-                shortcut("P", "Pin to the screen")
-                shortcut("G", "Copy a recording as a GIF")
-                shortcut("Esc", "Dismiss")
-                shortcut("⌘⌫", "Move to Trash")
+                ForEach(CardKeys.reference, id: \.keys) { row in
+                    shortcut(row.keys, row.summary)
+                }
             } header: {
                 Text("While pointing at a card")
             } footer: {

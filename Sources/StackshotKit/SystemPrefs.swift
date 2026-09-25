@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 /// Reads and writes the system screenshot settings (the `com.apple.screencapture` domain).
 enum ScreenshotPrefs {
@@ -97,6 +98,7 @@ enum NativeShortcuts {
     }
 
     static func setAreaShortcut(enabled: Bool) {
+        Log.keys.notice("native-shortcut.set key=⇧⌘4 enabled=\(enabled)")
         var dict = all
         if UserDefaults.standard.object(forKey: backupKey) == nil {
             UserDefaults.standard.set(dict[areaID] ?? unset, forKey: backupKey)
@@ -118,9 +120,15 @@ enum NativeShortcuts {
         UserDefaults.standard.removeObject(forKey: backupKey)
     }
 
+    /// How macOS describes ⇧⌘4 in a symbolic hot key: the character, the key code, then the modifiers.
+    private enum AreaKeys {
+        static let character = 52                                                    // "4" in ASCII
+        static let keyCode = kVK_ANSI_4                                              // 21
+        static let modifiers = Int(NSEvent.ModifierFlags([.shift, .command]).rawValue) // 1_179_648
+    }
+
     private static func entry(enabled: Bool) -> [String: Any] {
-        // ⇧⌘4: "4", key code 21, shift+command
-        ["enabled": enabled, "value": ["parameters": [52, 21, 1_179_648], "type": "standard"]]
+        ["enabled": enabled, "value": ["parameters": [AreaKeys.character, AreaKeys.keyCode, AreaKeys.modifiers], "type": "standard"]]
     }
 
     private static func write(_ dict: [String: Any]) {

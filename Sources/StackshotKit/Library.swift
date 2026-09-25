@@ -17,27 +17,32 @@ enum Library {
     /// First launch of a version with a library: screenshots stop landing on the Desktop.
     /// Only moves the save location if it was still the macOS default.
     static func adoptIfOnDesktop() {
-        let d = UserDefaults.standard
-        guard !d.bool(forKey: "library.adopted") else { return }
-        d.set(true, forKey: "library.adopted")
-        guard ScreenshotPrefs.screenshotFolder.standardizedFileURL == ScreenshotPrefs.desktop.standardizedFileURL else { return }
+        guard !AppSettings.libraryAdopted else { return }
+        AppSettings.libraryAdopted = true
+        guard ScreenshotPrefs.screenshotFolder.standardizedFileURL == ScreenshotPrefs.desktop.standardizedFileURL else {
+            Log.library.notice("adopt.skipped reason=custom-save-folder")
+            return
+        }
         ScreenshotPrefs.setScreenshotFolder(root)
-        log.notice("Screenshots now save to \(root.path, privacy: .public)")
+        Log.library.notice("adopt path=\(root.path, privacy: .public)")
     }
 
     // MARK: Folders
 
     /// Folders you've filed shots into, most recently used first.
     static func folders() -> [URL] {
+        guard FileManager.default.fileExists(atPath: root.path) else { return [] }
         let keys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey]
-        let items = (try? FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
+        let items: [URL]
+        do {
+            items = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])
+        } catch {
+            Log.library.error("folders.read-failed path=\(root.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            return []
+        }
         return items
             .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true && $0.lastPathComponent != "Archive" }
-            .sorted {
-                let a = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-                let b = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
-                return a > b
-            }
+            .sorted { ($0.modificationDate ?? .distantPast) > ($1.modificationDate ?? .distantPast) }
     }
 
     /// Moves a shot (and its edits) into a folder in the library.
@@ -49,8 +54,10 @@ enum Library {
             shot.url = dest
             // Bumps the folder to the top of the list next time.
             try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: folder.path)
+            Log.library.info("file file=\(dest.lastPathComponent, privacy: .public) folder=\(folder.lastPathComponent, privacy: .public)")
             return true
         } catch {
+            Log.library.error("file.failed file=\(shot.url.lastPathComponent, privacy: .public) folder=\(folder.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             NSAlert(error: error).runModal()
             return false
         }
@@ -76,80 +83,107 @@ enum Library {
         return root.appendingPathComponent(name, isDirectory: true)
     }
 
+    // MARK: Moving files
+
     /// Moves a file and its sidecar into `folder`, picking a free name. Returns where it ended up.
     static func move(_ url: URL, into folder: URL) throws -> URL {
-        let dest = freeName(url.lastPathComponent, in: folder)
-        try FileManager.default.moveItem(at: url, to: dest)
-        let sidecar = Markup.sidecarURL(for: url)
-        if FileManager.default.fileExists(atPath: sidecar.path) {
-            try? FileManager.default.moveItem(at: sidecar, to: Markup.sidecarURL(for: dest))
-        }
+        let dest = CaptureFile.freeURL(for: url.lastPathComponent, in: folder)
+        try move(url, to: dest)
         return dest
     }
 
-    static func freeName(_ name: String, in folder: URL) -> URL {
-        var dest = folder.appendingPathComponent(name)
-        let stem = (name as NSString).deletingPathExtension
-        let ext = (name as NSString).pathExtension
-        var n = 2
-        while FileManager.default.fileExists(atPath: dest.path) {
-            dest = folder.appendingPathComponent(ext.isEmpty ? "\(stem) (\(n))" : "\(stem) (\(n)).\(ext)")
-            n += 1
+    /// Moves a file to exactly `dest`, taking its edits along. A sidecar that won't move is logged, not thrown.
+    static func move(_ url: URL, to dest: URL) throws {
+        try FileManager.default.moveItem(at: url, to: dest)
+        let sidecar = Markup.sidecarURL(for: url)
+        guard FileManager.default.fileExists(atPath: sidecar.path) else { return }
+        do {
+            try FileManager.default.moveItem(at: sidecar, to: Markup.sidecarURL(for: dest))
+        } catch {
+            Log.library.error("sidecar.move-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
         }
-        return dest
+    }
+
+    /// Removes a file's edits once the file itself has gone to the Trash.
+    static func deleteSidecar(of url: URL) {
+        let sidecar = Markup.sidecarURL(for: url)
+        guard FileManager.default.fileExists(atPath: sidecar.path) else { return }
+        do {
+            try FileManager.default.removeItem(at: sidecar)
+        } catch {
+            Log.library.error("sidecar.delete-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: Tidy-up
 
     enum TidyAction: String { case archive, trash }
 
+    private static let secondsPerDay: TimeInterval = 86_400
+
     /// Screenshots and recordings sitting loose in the inbox (not in any folder you made).
     static func looseCaptures(in folder: URL) -> [(url: URL, created: Date)] {
         let keys: [URLResourceKey] = [.creationDateKey, .isRegularFileKey]
-        let items = (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
+        let items: [URL]
+        do {
+            items = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])
+        } catch {
+            Log.library.error("list.failed path=\(folder.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            return []
+        }
         return items.compactMap { url in
-            guard let v = try? url.resourceValues(forKeys: Set(keys)), v.isRegularFile == true, isCapture(url) else { return nil }
+            guard let v = try? url.resourceValues(forKeys: Set(keys)), v.isRegularFile == true, CaptureFile.isCapture(url) else { return nil }
             return (url, v.creationDate ?? .distantPast)
         }
     }
 
-    static func isCapture(_ url: URL) -> Bool {
-        if getxattr(url.path, "com.apple.metadata:kMDItemIsScreenCapture", nil, 0, 0, 0) >= 0 { return true }
-        let name = url.lastPathComponent
-        return name.hasPrefix("Screenshot") || name.hasPrefix("Screen Recording") || name.hasPrefix("Screen Shot")
+    /// The loose captures in `folder` made before `cutoff`, leaving alone anything still on the stack.
+    static func tidyCandidates(in folder: URL, olderThan cutoff: Date, sparing onStack: [URL]) -> [(url: URL, created: Date)] {
+        let spared = Set(onStack.map(\.standardizedFileURL))
+        return looseCaptures(in: folder).filter { $0.created < cutoff && !spared.contains($0.url.standardizedFileURL) }
     }
 
     /// Archives (or trashes) inbox captures older than the tidy setting. Leaves anything still on the stack alone.
     static func tidy(store: ShotStore) {
         let days = AppSettings.tidyAfterDays
         guard days > 0 else { return }
-        let cutoff = Date().addingTimeInterval(-Double(days) * 86_400)
-        let onStack = Set(store.shots.map(\.url.standardizedFileURL))
-        let old = looseCaptures(in: ScreenshotPrefs.screenshotFolder).filter { $0.created < cutoff && !onStack.contains($0.url.standardizedFileURL) }
-        guard !old.isEmpty else { return }
-
-        let month = DateFormatter()
-        month.dateFormat = "yyyy-MM"
+        let cutoff = Date().addingTimeInterval(-Double(days) * secondsPerDay)
+        let old = tidyCandidates(in: ScreenshotPrefs.screenshotFolder, olderThan: cutoff, sparing: store.shots.map(\.url))
+        guard !old.isEmpty else {
+            Log.library.debug("tidy count=0 days=\(days)")
+            return
+        }
+        let action = AppSettings.tidyAction
         var done = 0
         for item in old {
             do {
-                switch AppSettings.tidyAction {
-                case .trash:
-                    try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
-                    try? FileManager.default.removeItem(at: Markup.sidecarURL(for: item.url))
-                case .archive:
-                    let folder = archive.appendingPathComponent(month.string(from: item.created), isDirectory: true)
-                    try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-                    _ = try move(item.url, into: folder)
-                }
+                try tidyAway(item, action: action)
                 done += 1
             } catch {
-                log.error("Couldn't tidy \(item.url.lastPathComponent, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                Log.library.error("tidy.failed file=\(item.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             }
         }
         store.forget(old.map(\.url))
-        log.notice("Tidied \(done) old captures (\(AppSettings.tidyAction.rawValue, privacy: .public))")
+        Log.library.notice("tidy count=\(done) failed=\(old.count - done) action=\(action.rawValue, privacy: .public)")
     }
+
+    private static func tidyAway(_ item: (url: URL, created: Date), action: TidyAction) throws {
+        switch action {
+        case .trash:
+            try FileManager.default.trashItem(at: item.url, resultingItemURL: nil)
+            deleteSidecar(of: item.url)
+        case .archive:
+            let folder = archive.appendingPathComponent(monthFormatter.string(from: item.created), isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            _ = try move(item.url, into: folder)
+        }
+    }
+
+    private static let monthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM"
+        return f
+    }()
 
     // MARK: Desktop
 
@@ -159,6 +193,7 @@ enum Library {
         NSApp.activate()
         let alert = NSAlert()
         guard !loose.isEmpty else {
+            Log.library.info("clear-desktop count=0")
             alert.messageText = "No screenshots on your Desktop"
             alert.informativeText = "Nothing to move."
             alert.runModal()
@@ -169,36 +204,25 @@ enum Library {
         alert.informativeText = "They'll go into Pictures › Stackshot › From Desktop. Only screenshots and screen recordings move, nothing else."
         alert.addButton(withTitle: "Move \(loose.count)")
         alert.addButton(withTitle: "Cancel")
-        guard alert.runModal() == .alertFirstButtonReturn else { return }
-        try? FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            Log.library.info("clear-desktop.cancelled count=\(loose.count)")
+            return
+        }
+        do {
+            try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+        } catch {
+            Log.library.error("clear-desktop.folder-failed path=\(dest.path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
         var moved: [URL: URL] = [:]
         for item in loose {
-            if let to = try? move(item.url, into: dest) { moved[item.url.standardizedFileURL] = to }
+            do {
+                moved[item.url.standardizedFileURL] = try move(item.url, into: dest)
+            } catch {
+                Log.library.error("clear-desktop.move-failed file=\(item.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            }
         }
+        Log.library.info("clear-desktop count=\(moved.count) failed=\(loose.count - moved.count)")
         store.relocate(moved)
         NSWorkspace.shared.activateFileViewerSelecting([dest])
-    }
-}
-
-// MARK: - Remembering the stack
-
-/// Saves which files are on the stack (and recently dismissed) so a restart or update doesn't lose them.
-@MainActor
-enum StackMemory {
-    private static let shotsKey = "stack.shots"
-    private static let recentKey = "stack.recent"
-
-    static func save(_ store: ShotStore) {
-        UserDefaults.standard.set(store.shots.map(\.url.path), forKey: shotsKey)
-        UserDefaults.standard.set(store.recent.map(\.url.path), forKey: recentKey)
-    }
-
-    static func restore(into store: ShotStore) {
-        let paths = UserDefaults.standard.stringArray(forKey: shotsKey) ?? []
-        let recent = UserDefaults.standard.stringArray(forKey: recentKey) ?? []
-        store.restoreSaved(
-            shots: paths.map { URL(fileURLWithPath: $0) }.filter { FileManager.default.fileExists(atPath: $0.path) },
-            recent: recent.map { URL(fileURLWithPath: $0) }.filter { FileManager.default.fileExists(atPath: $0.path) }
-        )
     }
 }

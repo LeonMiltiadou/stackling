@@ -4,6 +4,19 @@ import Combine
 import QuickLookThumbnailing
 import SwiftUI
 
+/// A short message over a card, e.g. "Copied" or "Making GIF…".
+struct Toast: Equatable {
+    enum Kind {
+        /// Still going: shows a spinner and stays up until something replaces it.
+        case working
+        case done
+        case failed
+    }
+
+    let text: String
+    let kind: Kind
+}
+
 /// One screenshot (or screen recording) sitting in the stack.
 @MainActor
 final class Shot: ObservableObject, Identifiable {
@@ -14,10 +27,13 @@ final class Shot: ObservableObject, Identifiable {
     @Published var pixelSize: CGSize?
     /// Length in seconds, for recordings.
     @Published var duration: Double?
-    @Published var toast: String?
+    @Published var toast: Toast?
     /// Annotations and beautify settings, kept beside the file until you flatten them.
     @Published var markup: Markup?
     private(set) var modified: Date?
+
+    /// How long a finished or failed message stays on the card.
+    nonisolated static let toastDuration: TimeInterval = 0.9
 
     var isVideo: Bool { ["mov", "mp4", "m4v"].contains(url.pathExtension.lowercased()) }
     var isGIF: Bool { url.pathExtension.lowercased() == "gif" }
@@ -40,25 +56,32 @@ final class Shot: ObservableObject, Identifiable {
         refresh()
     }
 
+    /// The image with its annotations drawn in, or nil if there are none (or the file can't be read).
+    func renderedWithMarkup() -> CGImage? {
+        guard hasMarkup, let markup, let base = MarkupRenderer.loadImage(url) else { return nil }
+        return MarkupRenderer.render(base: base, markup: markup)
+    }
+
     /// The file to hand to other apps: the original, or a flattened copy if you've annotated it.
     func exportURL() -> URL {
-        guard hasMarkup, let markup, let base = MarkupRenderer.loadImage(url),
-              let rendered = MarkupRenderer.render(base: base, markup: markup) else { return url }
-        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.leonmiltiadou.stackshot/exports/\(id.uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let out = dir.appendingPathComponent(url.deletingPathExtension().lastPathComponent + ".png")
+        guard hasMarkup else { return url }
+        guard let rendered = renderedWithMarkup() else {
+            Log.actions.error("export.render-failed file=\(self.url.lastPathComponent, privacy: .public) fallback=original")
+            return url
+        }
+        let out = AppPaths.exports(for: id).appendingPathComponent(url.deletingPathExtension().lastPathComponent + ".png")
         do {
             try MarkupRenderer.writePNG(rendered, to: out, pixelScale: MarkupRenderer.pixelScale(url))
             return out
         } catch {
+            Log.actions.error("export.write-failed file=\(self.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public) fallback=original")
             return url
         }
     }
 
     /// Re-reads the file: thumbnail, dimensions, modification date.
     func refresh() {
-        modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        modified = url.modificationDate
         if let src = CGImageSourceCreateWithURL(url as CFURL, nil),
            let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any],
            let w = props[kCGImagePropertyPixelWidth] as? Int,
@@ -66,8 +89,7 @@ final class Shot: ObservableObject, Identifiable {
             pixelSize = CGSize(width: w, height: h)
         }
         if isVideo { loadVideoInfo() }
-        if hasMarkup, let markup, let base = MarkupRenderer.loadImage(url),
-           let rendered = MarkupRenderer.render(base: base, markup: markup) {
+        if let rendered = renderedWithMarkup() {
             thumbnail = NSImage(cgImage: rendered, size: NSSize(width: rendered.width, height: rendered.height))
             return
         }
@@ -101,157 +123,32 @@ final class Shot: ObservableObject, Identifiable {
     }
 
     func refreshIfModified() {
-        let now = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-        if let now, now != modified { refresh() }
+        if let now = url.modificationDate, now != modified { refresh() }
     }
 
-    /// Shows a short message over the card.
-    func flash(_ message: String, for seconds: Double = 0.9) {
-        withAnimation(.easeOut(duration: 0.15)) { toast = message }
+    // MARK: Toasts
+
+    /// Shows a message over the card for `seconds`, then fades it out unless something replaced it.
+    func show(_ toast: Toast, for seconds: Double) {
+        withAnimation(.easeOut(duration: 0.15)) { self.toast = toast }
         DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
-            if self.toast == message {
+            if self.toast == toast {
                 withAnimation(.easeIn(duration: 0.2)) { self.toast = nil }
             }
         }
     }
-}
 
-@MainActor
-final class ShotStore: ObservableObject {
-    static let shared = ShotStore()
+    /// Something finished: "Copied", "GIF saved".
+    func flashDone(_ text: String) { show(Toast(text: text, kind: .done), for: Self.toastDuration) }
 
-    /// Newest first.
-    @Published private(set) var shots: [Shot] = []
-    @Published var expanded = false
-    /// Shrunk down to a little box in the corner after a quiet spell. Click it to open the stack again.
-    @Published var minimized = false
-    /// Things you dismissed, so you can bring them back from the menu.
-    @Published private(set) var recent: [Shot] = []
-    /// Set by the panel controller based on the screen it lives on.
-    @Published var maxListHeight: CGFloat = 600
-    /// Where you dragged the stack to (the panel's bottom-left), or nil for the usual corner.
-    @Published var customOrigin: NSPoint?
+    /// Something went wrong: "Couldn't make a GIF".
+    func flashFailed(_ text: String) { show(Toast(text: text, kind: .failed), for: Self.toastDuration) }
 
-    private let spring = Animation.spring(response: 0.38, dampingFraction: 0.82)
+    /// Still working. Stays up until a done or failed message replaces it, or `timeout` passes in case nothing does.
+    func flashWorking(_ text: String, timeout: TimeInterval) { show(Toast(text: text, kind: .working), for: timeout) }
 
-    /// A brand-new screenshot or recording. Also copies it if you've asked for that.
-    func addCapture(_ url: URL, created: Date = Date()) {
-        guard add(url, created: created), AppSettings.copyOnCapture, let shot = shots.first(where: { $0.url == url }) else { return }
-        Actions.writeToPasteboard(shot)
-        shot.flash("Copied")
-    }
-
-    @discardableResult
-    func add(_ url: URL, created: Date = Date()) -> Bool {
-        guard !shots.contains(where: { $0.url == url }) else { return false }
-        recent.removeAll { $0.url == url }
-        let shot = Shot(url: url, created: created)
-        withAnimation(spring) {
-            shots.insert(shot, at: 0)
-            minimized = false
-        }
-        return true
-    }
-
-    /// Puts back what was on the stack before Stackshot last quit. Starts shrunk, so it doesn't jump out at you.
-    func restoreSaved(shots urls: [URL], recent recentURLs: [URL]) {
-        let created = { (url: URL) in (try? url.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? Date() }
-        shots = urls.map { Shot(url: $0, created: created($0)) }
-        recent = recentURLs.map { Shot(url: $0, created: created($0)) }
-        minimized = !shots.isEmpty
-    }
-
-    /// Files that moved (tidied, filed, moved off the Desktop): keep the cards pointing at them.
-    func relocate(_ moves: [URL: URL]) {
-        for shot in shots + recent {
-            if let to = moves[shot.url.standardizedFileURL] { shot.url = to }
-        }
-    }
-
-    /// Drops dismissed entries for files that were tidied away.
-    func forget(_ urls: [URL]) {
-        let gone = Set(urls.map(\.standardizedFileURL))
-        recent.removeAll { gone.contains($0.url.standardizedFileURL) }
-    }
-
-    /// Takes it off the stack. The file stays where it is.
-    func dismiss(_ shot: Shot) {
-        guard shots.contains(where: { $0 === shot }) else { return }
-        withAnimation(spring) {
-            shots.removeAll { $0 === shot }
-            if shots.count <= 1 { expanded = false }
-        }
-        shot.toast = nil
-        recent.insert(shot, at: 0)
-        if recent.count > 20 { recent.removeLast(recent.count - 20) }
-    }
-
-    /// Dismisses after a short confirmation message, unless ⌥ is held.
-    func finish(_ shot: Shot, message: String) {
-        shot.flash(message)
-        if NSEvent.modifierFlags.contains(.option) { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { self.dismiss(shot) }
-    }
-
-    func trash(_ shot: Shot) {
-        NSWorkspace.shared.recycle([shot.url]) { _, _ in }
-        try? FileManager.default.removeItem(at: Markup.sidecarURL(for: shot.url))
-        withAnimation(spring) {
-            shots.removeAll { $0 === shot }
-            if shots.count <= 1 { expanded = false }
-        }
-        recent.removeAll { $0 === shot }
-    }
-
-    func setMinimized(_ on: Bool) {
-        guard on != minimized else { return }
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) { minimized = on }
-    }
-
-    func clearAll() {
-        for shot in shots { shot.toast = nil }
-        recent.insert(contentsOf: shots, at: 0)
-        if recent.count > 20 { recent.removeLast(recent.count - 20) }
-        withAnimation(spring) {
-            shots.removeAll()
-            expanded = false
-        }
-    }
-
-    func restore(_ shot: Shot) {
-        recent.removeAll { $0 === shot }
-        guard shot.exists else { return }
-        withAnimation(spring) {
-            shots.insert(shot, at: 0)
-            minimized = false
-        }
-    }
-
-    func restoreAllRecent() {
-        let items = recent.filter(\.exists)
-        recent.removeAll()
-        withAnimation(spring) {
-            shots.insert(contentsOf: items, at: 0)
-            minimized = false
-        }
-    }
-
-    func fileChanged(_ url: URL) {
-        shots.first { $0.url == url }?.refreshIfModified()
-    }
-
-    /// Drops cards whose file was deleted or moved somewhere else.
-    func pruneMissing() {
-        let missing = shots.filter { !$0.exists }
-        guard !missing.isEmpty else { return }
-        withAnimation(spring) {
-            shots.removeAll { s in missing.contains { $0 === s } }
-            if shots.count <= 1 { expanded = false }
-        }
-        recent.removeAll { !$0.exists }
-    }
-
-    func toggleExpanded() {
-        withAnimation(spring) { expanded = shots.count > 1 ? !expanded : false }
+    /// Shows a short "done" message over the card. Kept for callers that predate `Toast`.
+    func flash(_ message: String, for seconds: Double = Shot.toastDuration) {
+        show(Toast(text: message, kind: .done), for: seconds)
     }
 }
