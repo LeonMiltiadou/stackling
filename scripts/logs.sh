@@ -4,6 +4,7 @@
 #   scripts/logs.sh 10m             the last 10 minutes
 #   scripts/logs.sh 1h capture      the last hour, one category
 #   scripts/logs.sh live stack      stream live, one category
+#   TESTS=1 scripts/logs.sh 5m      include log lines from `swift test` runs
 #
 # Categories: app, stack, capture, recording, library, actions, keys, editor
 set -e
@@ -11,6 +12,7 @@ set -e
 span=${1:-live}
 category=$2
 predicate='subsystem == "com.leonmiltiadou.stackshot"'
+[ -z "$TESTS" ] && predicate="$predicate AND process == \"Stackshot\""
 [ -n "$category" ] && predicate="$predicate AND category == \"$category\""
 
 if [ "$span" = "live" ]; then

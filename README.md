@@ -70,6 +70,11 @@ While recording, a small bar at the top shows the time, a **Stop** button and a 
 recording away. The menu bar icon turns into a red stop button, and a dashed line marks the area.
 None of that ends up in the video, and neither does the stack. Pinned screenshots do. No sound is recorded.
 
+**Showing your shortcuts:** turn on Settings → General → **Show shortcuts I press in recordings** and
+shortcuts like `⇧⌘P`, `⎋` and `↩` appear as key caps at the bottom of area and full-screen recordings.
+Plain typing never shows, so a password you type mid-demo stays out of the video. macOS asks for the
+Accessibility permission the first time, because that's what lets Stackshot see keys pressed in other apps.
+
 Recordings land on the stack like screenshots. Their cards show the length, and **GIF** copies a
 looping GIF, handy for Slack or a GitHub issue.
 
@@ -134,6 +139,10 @@ Nine tools, each with a one-letter shortcut:
 - **Colours and sizes** are in the toolbar. `1` `2` `3` switch size. Picking a colour or size with something selected changes that thing.
 - Hold `⌘` and drag to move a shape without switching to Select.
 - **Beautify** (✨) puts the shot on a gradient background with padding, rounded corners and a shadow. Ready to post.
+- **Hide Secrets** (🛡) reads the screenshot's text and blacks out API keys, tokens, JWTs, passwords (including
+  the one in `postgres://user:password@host`), private keys, emails and card numbers. Solid blocks, not
+  pixelation, since pixelated text can sometimes be recovered. One `⌘Z` undoes it. It only finds what it can
+  read, so glance over the result before sharing.
 - `⌘Z` / `⇧⌘Z` undo and redo. `⌘C` copies and closes. `Return` or **Done** keeps your edits and closes.
 
 **Your edits stay editable.** They're saved in a hidden file next to the screenshot
@@ -186,14 +195,29 @@ Change the timing in Settings → General: after 1, 2 (default), 5 or 10 seconds
   moves only screenshots and recordings into `Stackshot/From Desktop`, after asking.
 - Menu bar → **Open Library** opens the save folder in Finder.
 
+**Tidy with Claude** (menu bar, or Settings → Library) hands your loose screenshots to Claude Code, which
+looks at each one and suggests a descriptive name and a folder, reusing folders you already have:
+
+```
+Screenshot 2026-09-25 at 10.00.00.png  →  Bugs/checkout-summary-cart-items-undefined.png
+Screenshot 2026-09-25 at 10.04.00.png  →  Monitoring/checkout-service-latency-spike-grafana.png
+```
+
+You get an editable list first. Change any name or folder, untick what you'd rather leave, then **Apply**.
+Nothing moves before that. **Name with Claude** in a card's **…** menu does the same for one shot and keeps
+it on the stack. It needs [Claude Code](https://claude.com/claude-code) installed and signed in, and uses
+your own account (Sonnet by default, Haiku if you want it faster; pick in Settings → Library). It runs
+read-only and ignores your personal Claude settings.
+
 ### Other bits
 
 - The **Dock badge** shows how many shots are waiting.
 - **Clicking the Dock icon** starts an area capture.
 - **Right-click the Dock icon** for all the capture options.
 - The **menu bar icon** has captures, the stack, Recently Dismissed, Open Library and **Settings…** (`⌘,`).
-- **Settings** has three tabs: General (shrinking, copy on capture, open at login), Library (save folder, tidying)
-  and Shortcuts (every key, plus **Use Stackshot for ⇧⌘4**: turn it off to give ⇧⌘4 back to macOS).
+- **Settings** has three tabs: General (shrinking, copy on capture, key caps in recordings, open at login),
+  Library (save folder, tidying, Claude) and Shortcuts (every key, plus **Use Stackshot for ⇧⌘4**: turn it
+  off to give ⇧⌘4 back to macOS).
 
 ## What it changes on your Mac
 
@@ -263,31 +287,14 @@ Then right-click Stackshot in the Dock → Options → Remove from Dock.
 ## For development
 
 ```sh
-scripts/build.sh            # build to build/Stackshot.app
 scripts/build.sh install    # build, install to /Applications, relaunch
-scripts/build.sh package    # universal build, zipped for sharing
-scripts/make-icon.sh        # redraw the icon
+swift test                  # run the tests
+scripts/logs.sh 10m         # what the app did in the last 10 minutes (or `live`, and a category)
+swift scripts/windows.swift # where every Stackshot window is, and which desktops it's on
 ```
 
 The stack hides itself from screenshots so it doesn't end up in your full-screen shots.
-To see it while testing, launch with `STACKSHOT_DEBUG=1`:
+To see it while testing, launch with `STACKSHOT_DEBUG=1 build/Stackshot.app/Contents/MacOS/Stackshot`.
 
-```sh
-STACKSHOT_DEBUG=1 build/Stackshot.app/Contents/MacOS/Stackshot
-```
-
-| File | What's in it |
-| --- | --- |
-| `CaptureOverlay.swift` | Frozen-screen capture: area, window, full screen, loupe |
-| `Hotkeys.swift` | ⇧⌘4 / ⇧⌘8 / ⇧⌘9, and switching the Mac's own ⇧⌘4 off and back on |
-| `Editor.swift` | The annotation editor: canvas, tools, toolbar, beautify panel |
-| `Markup.swift` | Annotations, the hidden edits file, and drawing/exporting them |
-| `PinWindow.swift` | Floating pinned screenshots |
-| `Watcher.swift` | Watches the screenshot folder and spots new screenshots |
-| `Shot.swift` | A screenshot on the stack, and the stack itself |
-| `StackView.swift` | Everything you see: cards, buttons, the expanded list |
-| `StackPanel.swift` | The floating window in the corner, sizing and fading |
-| `DragSurface.swift` | Click and drag handling on each card |
-| `Actions.swift` | Copy, grab text, edit, pin, flatten, move, share |
-| `Prefs.swift` | Reading and restoring the Mac's screenshot settings, plus Stackshot's own settings |
-| `AppDelegate.swift` | Menu bar icon, Dock menu, welcome message |
+`AGENTS.md` has the architecture, conventions (logging, settings) and debugging notes. It's written
+for AI assistants, and people will find it useful too.
