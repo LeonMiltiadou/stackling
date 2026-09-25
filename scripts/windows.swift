@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Shows every window the running Stackshot owns: where it is, whether it's on screen,
+// Shows every window the running Stackling owns: where it is, whether it's on screen,
 // its opacity, and which desktops (Spaces) it belongs to. The first thing to run when
 // "the stack isn't showing".
 //
@@ -9,8 +9,8 @@
 // A stack that is ordered in but missing from the active desktop's list is stranded on another desktop.
 import AppKit
 
-guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.leonmiltiadou.stackshot" }) else {
-    print("Stackshot isn't running")
+guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "io.github.leonmiltiadou.stackling" }) else {
+    print("Stackling isn't running")
     exit(1)
 }
 
@@ -23,7 +23,7 @@ let connection = unsafeBitCast(dlsym(cg, "CGSMainConnectionID"), to: MainConnect
 let spacesFor = unsafeBitCast(dlsym(cg, "CGSCopySpacesForWindows"), to: SpacesForWindows.self)
 let activeSpace = unsafeBitCast(dlsym(cg, "CGSGetActiveSpace"), to: ActiveSpace.self)(connection)
 
-print("Stackshot pid \(app.processIdentifier), hidden \(app.isHidden), active desktop \(activeSpace)")
+print("Stackling pid \(app.processIdentifier), hidden \(app.isHidden), active desktop \(activeSpace)")
 let windows = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] ?? []
 for w in windows where (w[kCGWindowOwnerPID as String] as? pid_t) == app.processIdentifier {
     let id = w[kCGWindowNumber as String] as? Int ?? 0

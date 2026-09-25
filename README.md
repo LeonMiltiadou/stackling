@@ -1,300 +1,180 @@
-# Stackshot
+<p align="center">
+  <img src="Resources/AppIcon.png" width="128" alt="Stackling icon: a little stack of cards with a smiling face">
+</p>
 
-<img src="Resources/AppIcon.png" width="128" align="right" alt="Stackshot icon">
+<h1 align="center">Stackling</h1>
 
-Screenshots that wait for you.
+<p align="center"><strong>A little stack that keeps your screenshots.</strong></p>
 
-The Mac shows a little thumbnail after a screenshot, then it slides away on its own.
-Stackshot swaps that for a stack in the bottom-left corner. Every shot stays there
-until you actually do something with it.
+<p align="center">A free, open-source app for Mac. Every screenshot and screen recording you take waits in a neat
+stack in the corner of your screen until you're ready to use it.</p>
 
-## Install
+---
 
-```sh
-git clone https://github.com/LeonMiltiadou/stackshot.git
-cd stackshot
-scripts/build.sh install
-```
+## Why you might like it
 
-That builds the app, copies it to `/Applications` and opens it.
-Needs macOS 14 or newer and Xcode (or the Xcode command line tools).
+When you take a screenshot on a Mac, a thumbnail pops up for a few seconds and slides away, and the
+file lands on your Desktop with everything else. Stackling keeps it within reach instead:
 
-Screenshots save to **Pictures › Stackshot** rather than the Desktop (see [Your library](#your-library)).
-If you'd already picked another folder, Stackshot leaves it alone.
+- **Screenshots wait for you.** They stack up in the bottom-left corner. Copy one, drag it into Slack or
+  an email, or mark it up, whenever you're ready.
+- **Better captures.** The screen freezes while you pick an area, so menus and hover effects stay put.
+- **Mark up in seconds.** Arrows, boxes, text, numbered steps and highlights, plus a pretty background
+  when you want to post it somewhere.
+- **Hide secrets before you share.** One click blacks out passwords, API keys, emails and card numbers.
+- **Screen recordings too,** with a one-click GIF for Slack or GitHub.
+- **No more messy Desktop.** Shots go into a tidy folder and clean themselves up after a week.
 
-## Sharing it with someone
+It's small, it runs quietly in your menu bar, and nothing leaves your Mac unless you ask it to.
 
-The easy way is a release. Tag a version and push it:
+## Get it
 
-```sh
-git tag v0.2.0 && git push origin v0.2.0
-```
+1. Download **Stackling.zip** from the [latest release](../../releases/latest)
+2. Unzip it and drag **Stackling** into your **Applications** folder
+3. Open it
 
-GitHub Actions builds it for Apple Silicon and Intel, stamps the version in, and attaches `Stackshot.zip`
-to a release on the repo's **Releases** page. Send people that link. No Xcode needed on their side.
+**"Stackling can't be opened because Apple cannot check it"?** That's macOS being careful with apps
+that don't come from the App Store yet. To open it anyway:
 
-To make the zip yourself instead, run `scripts/build.sh package`, which writes `build/Stackshot.zip`.
+1. Click **Done** on that message
+2. Open **System Settings → Privacy & Security**
+3. Scroll down and click **Open Anyway** next to Stackling, then confirm
 
-Either way, on their Mac:
+You only have to do this once. The first time you take a screenshot, macOS also asks for
+**Screen Recording** permission. Stackling needs that to freeze your screen. Turn it on, then reopen Stackling.
 
-1. Unzip it and drag **Stackshot** into **Applications**
-2. Open it. macOS will say it can't check it for malware, because it isn't notarised by Apple. Click **Done**.
-3. Go to **System Settings → Privacy & Security**, scroll down, click **Open Anyway** next to Stackshot, and confirm
-4. Allow Screen Recording when it asks
+Requires macOS 14 (Sonoma) or newer. Works on Apple Silicon and Intel Macs.
 
-After that it opens normally. To remove it later, they can follow [Uninstall](#uninstall-as-if-it-was-never-there).
+## The basics
 
-## Using it
-
-### Taking screenshots
-
-| Shortcut | What it does |
+| Press | To |
 | --- | --- |
-| `⇧⌘4` | **Area.** Freezes the screen first, so menus and hover states stay put. Shows a pixel loupe with exact coordinates and the colour under your cursor. |
-| `⇧⌘8` | **Window.** Hover a window and click it. Adds the soft macOS shadow (hold `⌥` when you click to skip it). |
-| `⇧⌘9` | **Full screen**, the one your mouse is on |
-| `⇧⌘7` | **Record.** Drag an area, click once for the whole screen, or press `Space` to pick a window. Press `⇧⌘7` again (or **Stop**) to finish. |
-| `⇧⌘3` / `⇧⌘5` | The Mac's own tools, unchanged. These land on the stack too. |
+| `⇧⌘4` | Capture an area. The screen freezes and a magnifier shows exact pixels |
+| `⇧⌘8` | Capture a window: hover it and click |
+| `⇧⌘9` | Capture the whole screen |
+| `⇧⌘7` | Record your screen. Press it again to stop |
+| `⇧⌘3` / `⇧⌘5` | The Mac's own tools still work, and their shots land in the stack too |
 
-While picking an area:
+Each new shot slides into the stack. **Hover a card** to see what you can do with it:
 
-| Key | Does |
+| Do this | What happens |
 | --- | --- |
-| Drag | Select the area |
-| `⇧` while dragging | Keep it square |
-| Hold `Space` while dragging | Move the selection around |
-| `Space` before dragging | Switch to picking a window |
-| `Esc` | Cancel |
+| **Copy** | Copies it, ready to paste anywhere |
+| **Drag** it | Drops it into any app: Slack, Mail, Figma, Finder… |
+| **Edit** (or click the picture) | Opens the editor to mark it up |
+| **Text** | Copies the words in the screenshot |
+| **📌** | Pins it on top of everything, handy for copying from one app into another |
+| **✕** | Takes it off the stack. The file stays safe |
 
-While recording, a small bar at the top shows the time, a **Stop** button and a bin to throw the
-recording away. The menu bar icon turns into a red stop button, and a dashed line marks the area.
-None of that ends up in the video, and neither does the stack. Pinned screenshots do. No sound is recorded.
+After a couple of quiet seconds the stack shrinks into a small box in its corner. Click it to open the
+stack again. If it's ever in your way, drag it anywhere by the **✥** handle on a card.
 
-**Showing your shortcuts:** turn on Settings → General → **Show shortcuts I press in recordings** and
-shortcuts like `⇧⌘P`, `⎋` and `↩` appear as key caps at the bottom of area and full-screen recordings.
-Plain typing never shows, so a password you type mid-demo stays out of the video. macOS asks for the
-Accessibility permission the first time, because that's what lets Stackshot see keys pressed in other apps.
+<details>
+<summary><strong>More: keyboard shortcuts on a card, the ⋯ menu, and moving the stack</strong></summary>
 
-Recordings land on the stack like screenshots. Their cards show the length, and **GIF** copies a
-looping GIF, handy for Slack or a GitHub issue.
+While your mouse is on a card: `⌘C` copies, `Space` or `E` opens it, `T` copies the text, `P` pins,
+`G` copies a recording as a GIF, `Esc` dismisses and `⌘⌫` moves it to the Trash. These only work while
+you're pointing at a card, so they never get in the way of your typing.
 
-Click a recording (or **Preview**) to open it in a preview window. It plays on a loop, and a
-**Video / GIF** switch shows you exactly what the GIF will look like, with its size, before you copy it.
-**Trim…** cuts the start or end off, **Save GIF** puts the GIF next to the video (and on the stack),
-and **Copy Video** / **Copy GIF** copies it and takes the card off the stack. Clicking a GIF card
-opens the same preview.
+The **⋯** menu on a card has: File Into a folder, Name with Claude, Move to…, Show in Finder, Open in Preview,
+Pin, Save Edits Into Image, Share and Copy File Path.
 
-The first time you use these, macOS asks for **Screen Recording** permission. Turn Stackshot on,
-then reopen it. Stackshot uses it to freeze the screen, and nothing ever leaves your Mac.
+Drag the stack by its **✥** handle and it stays wherever you leave it. Drop it near the corner and it
+snaps back, or click **↙**. Closed a card by accident? The menu bar icon has **Recently Dismissed**.
+</details>
 
-Each new shot slides into the stack in the bottom-left corner. With more than one, the older ones
-peek out behind the newest.
+## Marking up
 
-If the stack is in the way, drag it by the ✥ on any card (or by the title bar when it's expanded).
-New shots join it wherever it is. Drag it near the corner and it snaps back in.
-Once the stack is empty it goes back to the corner.
+Click a screenshot to open the editor. The tools each have a one-letter shortcut: **A**rrow,
+**R**ectangle, **O**val, **L**ine, **P**en, **T**ext, **N**umbered steps, **H**ighlighter and
+redact (**X**), which blurs out part of the picture.
 
-### Things you can do with a card
+- **✨ Beautify** puts your shot on a gradient background with rounded corners and a shadow.
+- **🛡 Hide Secrets** finds passwords, API keys, tokens, emails and card numbers and covers them with solid
+  blocks. It's quick, but give the result a glance before sharing: it can only hide what it can read.
+- Your edits stay editable. Reopen a screenshot any time and move or delete anything. Copy and drag
+  always include your edits.
 
-Hover a card to see its buttons.
+## Screen recordings
 
-| Do this | What happens | Does the card leave? |
-| --- | --- | --- |
-| **Click** the image or **Edit** | Opens the editor (see below) | No |
-| **Drag** it into any app | Drops the file there (Slack, Mail, Figma, Finder…), edits included | Yes |
-| Drag it onto the **Trash** in the Dock | Deletes it | Yes |
-| **Copy** | Puts the image on your clipboard, edits included | Yes (hold `⌥` to keep it) |
-| **Text** | Reads the words in the screenshot and copies them | Yes (hold `⌥` to keep it) |
-| **📌** | Pins it to the screen (see below) | Yes (hold `⌥` to keep it) |
-| **✕** (top left) | Hides the card. The file stays on disk | Yes |
-| Drag **✥** (top middle) | Moves the whole stack somewhere else, handy when you need to screenshot the bottom-left | No |
-| **↙** (next to ✥) | Puts the stack back in the corner. Double-clicking ✥ or dropping it near the corner does the same | No |
-| **🗑** (top right) | Moves the file to the Trash | Yes |
-| **…** | File Into a folder, Move to…, Show in Finder, Open in Preview, Pin, Save Edits Into Image, Share, Copy File Path | Depends |
+Press `⇧⌘7`, then drag an area, click once for the whole screen, or press `Space` to pick a window.
+A small bar shows the time with a **Stop** button. Press `⇧⌘7` again to finish.
 
-A little ✏️ on the card means it has edits.
+Your recording lands in the stack. Click it to watch it, trim the start or end, or flip to the **GIF**
+view to see exactly what you'd paste into Slack. No sound is recorded.
 
-**Keyboard:** while your mouse is on a card, `⌘C` copies, `Space` or `E` edits (or previews a
-recording), `T` copies the text, `P` pins, `G` copies a recording as a GIF, `Esc` dismisses and
-`⌘⌫` trashes. These only work while you're pointing at a card and have moved the mouse in the last
-few seconds, so a mouse parked in the corner never eats what you type elsewhere.
+Want viewers to see the shortcuts you press? Turn on **Show shortcuts I press in recordings** in Settings.
+Only shortcuts appear, like `⌘C` or `⎋`, never what you type.
 
-### The editor
+## Keeping things tidy
 
-Nine tools, each with a one-letter shortcut:
+Screenshots save to **Pictures › Stackling** instead of your Desktop.
 
-| Tool | Key | Notes |
-| --- | --- | --- |
-| Select | `V` | Click to pick, drag to move, `Delete` to remove, arrow keys to nudge (`⇧` for 10px). Double-click text to edit it. |
-| Arrow | `A` | `⇧` snaps to 45° |
-| Rectangle | `R` | `⇧` for a square |
-| Ellipse | `O` | `⇧` for a circle |
-| Line | `L` | `⇧` snaps to 45° |
-| Pen | `P` | Freehand |
-| Text | `T` | Click, type, `Return` to finish |
-| Counter | `N` | Click to drop numbered steps: 1, 2, 3… |
-| Highlighter | `H` | See-through marker |
-| Redact | `X` | Pixelates the area. Exports contain the blocks only, the original pixels are gone. |
+- Loose screenshots get tidied into monthly **Archive** folders after 7 days. You can change that, or turn it off.
+- **File Into** (in a card's **⋯** menu) puts a shot in a folder of its own. Those are never tidied away.
+- Got a Desktop full of old screenshots? **Settings → Library → Move Desktop Screenshots Into the Library…**
+  moves them in one go (it asks first, and only moves screenshots).
 
-- **Colours and sizes** are in the toolbar. `1` `2` `3` switch size. Picking a colour or size with something selected changes that thing.
-- Hold `⌘` and drag to move a shape without switching to Select.
-- **Beautify** (✨) puts the shot on a gradient background with padding, rounded corners and a shadow. Ready to post.
-- **Hide Secrets** (🛡) reads the screenshot's text and blacks out API keys, tokens, JWTs, passwords (including
-  the one in `postgres://user:password@host`), private keys, emails and card numbers. Solid blocks, not
-  pixelation, since pixelated text can sometimes be recovered. One `⌘Z` undoes it. It only finds what it can
-  read, so glance over the result before sharing.
-- `⌘Z` / `⇧⌘Z` undo and redo. `⌘C` copies and closes. `Return` or **Done** keeps your edits and closes.
-
-**Your edits stay editable.** They're saved in a hidden file next to the screenshot
-(`.Screenshot … .png.stackshot`), and the original image isn't touched. Reopen it any time and
-every arrow is still there to move or delete. Copy, drag, share and pin all use the edited
-version automatically. When you want the edits burned in for good, use **Save Edits Into Image**.
-
-### Pinning
-
-A pinned shot floats above every window, handy for copying something from one app into another.
-
-- Drag it anywhere
-- Scroll or pinch to resize
-- Right-click for Copy, Edit, Actual Size and Opacity
-- Double-click or `Esc` to close
-
-### The stack
-
-- **N more** above the stack fans everything out into a scrollable list. The arrow collapses it again.
-- **Clear all** hides every card. The files stay where they are.
-- Closed one by accident? Menu bar icon → **Recently Dismissed** brings it back.
-- The stack survives quitting, restarts and updates. It comes back shrunk, so it doesn't jump out at you.
-- Want every new shot on the clipboard straight away? Settings → General → **Copy new shots to the clipboard**.
-
-### Shrinking out of the way
-
-After 2 quiet seconds the stack shrinks into a little box in its corner: the newest shot,
-with a badge showing how many are waiting. Click the box to open the stack again.
-It stays open while your mouse is over it. A new shot opens it by itself.
-
-While the editor or a recording preview is in front, the stack hides completely so the two
-don't overlap. It comes back when you close the window or switch apps.
-
-Change the timing in Settings → General: after 1, 2 (default), 5 or 10 seconds, or never.
-
-### Your library
-
-```
-~/Pictures/Stackshot/
-    new shots land here, and get tidied away after 7 days
-    Archive/2026-09/     where tidied shots go
-    Checkout bug/        folders you file shots into: yours, never touched
-```
-
-- **File Into** (card **…** menu) moves a shot into a folder and takes it off the stack. **New Folder…** makes one.
-- **Tidying** runs on launch and every hour. It only touches screenshots and recordings loose at the top of
-  the save folder, and never ones still on the stack. Settings → Library picks 1, 7 (default) or 30 days,
-  or never, and whether it archives into monthly folders (default) or moves them to the Trash.
-- **Got years of screenshots on your Desktop?** Settings → Library → **Move Desktop Screenshots Into the Library…**
-  moves only screenshots and recordings into `Stackshot/From Desktop`, after asking.
-- Menu bar → **Open Library** opens the save folder in Finder.
-
-**Tidy with Claude** (menu bar, or Settings → Library) hands your loose screenshots to Claude Code, which
-looks at each one and suggests a descriptive name and a folder, reusing folders you already have:
+**Tidy with Claude** is optional. If you use [Claude Code](https://claude.com/claude-code), Stackling can
+ask it to look at your loose screenshots and suggest a clear name and a folder for each:
 
 ```
 Screenshot 2026-09-25 at 10.00.00.png  →  Bugs/checkout-summary-cart-items-undefined.png
-Screenshot 2026-09-25 at 10.04.00.png  →  Monitoring/checkout-service-latency-spike-grafana.png
 ```
 
-You get an editable list first. Change any name or folder, untick what you'd rather leave, then **Apply**.
-Nothing moves before that. **Name with Claude** in a card's **…** menu does the same for one shot and keeps
-it on the stack. It needs [Claude Code](https://claude.com/claude-code) installed and signed in, and uses
-your own account (Sonnet by default, Haiku if you want it faster; pick in Settings → Library). It runs
-read-only and ignores your personal Claude settings.
+You see every suggestion first and can change or skip any of them. Nothing moves until you click **Apply**.
+It uses your own Claude account and only ever reads your screenshots.
 
-### Other bits
+## Settings
 
-- The **Dock badge** shows how many shots are waiting.
-- **Clicking the Dock icon** starts an area capture.
-- **Right-click the Dock icon** for all the capture options.
-- The **menu bar icon** has captures, the stack, Recently Dismissed, Open Library and **Settings…** (`⌘,`).
-- **Settings** has three tabs: General (shrinking, copy on capture, key caps in recordings, open at login),
-  Library (save folder, tidying, Claude) and Shortcuts (every key, plus **Use Stackshot for ⇧⌘4**: turn it
-  off to give ⇧⌘4 back to macOS).
+Open **Settings** from the menu bar icon (or press `⌘,`). You can change how quickly the stack
+shrinks, where screenshots are saved, how tidying works, whether new shots are copied automatically,
+and whether Stackling handles `⇧⌘4` or leaves it to macOS.
 
-## What it changes on your Mac
+## Your privacy
 
-Stackshot remembers what each of these was before it changed them, so uninstalling puts them back exactly.
+Stackling works entirely on your Mac. It doesn't have an account and doesn't send anything anywhere.
+The one exception is **Tidy with Claude**, which only runs when you ask and uses your own Claude Code.
 
-| Change | Why | Turn it off |
-| --- | --- | --- |
-| Turns off the Mac's floating thumbnail | Otherwise you'd get two previews, and the Mac holds back the file until its thumbnail slides away | Settings → General → **Show the macOS floating thumbnail too** |
-| Takes over `⇧⌘4` | So area captures get the frozen screen and loupe | Settings → Shortcuts → **Use Stackshot for ⇧⌘4** |
-| Adds `⇧⌘7`, `⇧⌘8` and `⇧⌘9` | Recording, window and full-screen capture. Only while Stackshot is running. | Quit Stackshot |
-| Hidden `.stackshot` files next to screenshots you edit | Keeps your edits editable | **Save Edits Into Image**, or uninstall |
-| Where screenshots are saved | Moves them from the Desktop to Pictures › Stackshot, once, if you were still on the Desktop | Settings → Library → **Choose Folder…** |
-| Login Items | Only if you turn on **Open at Login** | Turn it off |
+It asks for:
 
-## Uninstall (as if it was never there)
+- **Screen Recording**, to freeze the screen and to record
+- **Accessibility**, only if you turn on showing shortcuts in recordings
 
-From this folder, run:
+## What it changes on your Mac, and uninstalling
+
+To avoid two previews, Stackling turns off the Mac's own floating screenshot thumbnail. It also takes over
+`⇧⌘4` for its frozen-screen capture, and moves your screenshot folder from the Desktop to
+Pictures › Stackling. It remembers how everything was before.
+
+To remove it, choose **Stackling › Uninstall Stackling…** from the menu bar while Stackling is open.
+That puts every one of those settings back, deletes the app and its settings, and leaves your
+screenshots exactly where they are.
+
+## Questions and ideas
+
+Found a bug or have an idea? [Open an issue](../../issues). Stackling is a personal project, so there's
+no promise of a quick reply, but everything gets read. Pull requests are welcome as suggestions. Changes
+are reviewed and merged by the maintainer.
+
+## For developers
+
+Stackling is written in Swift (AppKit and SwiftUI) and builds with the Swift toolchain that comes
+with Xcode.
 
 ```sh
-scripts/uninstall.sh
+git clone https://github.com/LeonMiltiadou/stackling.git
+cd stackling
+scripts/build.sh install   # build, copy to /Applications and open
+swift test                 # run the tests
+scripts/logs.sh 10m        # see what the app did in the last 10 minutes
 ```
 
-It does all of this for you:
+[`AGENTS.md`](AGENTS.md) explains how the app is put together, its conventions and how to debug it.
+It's written for AI coding assistants, and it's a good read for people too.
 
-| Step | What gets undone |
-| --- | --- |
-| 1 | Quits Stackshot |
-| 2 | Deletes the hidden `.stackshot` edit files |
-| 3 | Removes it from Login Items |
-| 4 | Puts the Mac's screenshot settings back to exactly what they were (floating thumbnail and save folder) |
-| 5 | Gives `⇧⌘4` back to macOS |
-| 6 | Takes it out of the Dock |
-| 7 | Deletes `/Applications/Stackshot.app`, its settings and caches |
-| 8 | Clears the permissions you gave it (Desktop folder, Screen Recording) |
+Stackling used to be called Stackshot. Updating from it carries your settings, library and edits across.
 
-Your screenshots are **never** touched. They stay wherever they were saved.
-Edits you haven't saved into the image are lost, so use **Save Edits Into Image** first on any you want to keep.
+## Licence
 
-Then delete this folder if you want the code gone too.
-
-<details>
-<summary>Doing it by hand instead</summary>
-
-```sh
-# Quit the app (or use Quit from its menu bar icon)
-pkill -f Stackshot.app/Contents/MacOS/Stackshot
-
-# Undo login item, screenshot settings and ⇧⌘4 (run this before deleting the app)
-/Applications/Stackshot.app/Contents/MacOS/Stackshot --uninstall
-
-# If the app is already deleted, bring the floating thumbnail back, then turn ⇧⌘4 back on in
-# System Settings → Keyboard → Keyboard Shortcuts → Screenshots
-defaults delete com.apple.screencapture show-thumbnail
-
-# Remove hidden edit files next to your screenshots
-find ~/Desktop ~/Pictures/Stackshot -name '.*.stackshot' -delete
-
-# Delete the app and its settings, clear permissions
-rm -rf /Applications/Stackshot.app
-defaults delete com.leonmiltiadou.stackshot
-tccutil reset All com.leonmiltiadou.stackshot
-```
-
-Then right-click Stackshot in the Dock → Options → Remove from Dock.
-</details>
-
-## For development
-
-```sh
-scripts/build.sh install    # build, install to /Applications, relaunch
-swift test                  # run the tests
-scripts/logs.sh 10m         # what the app did in the last 10 minutes (or `live`, and a category)
-swift scripts/windows.swift # where every Stackshot window is, and which desktops it's on
-```
-
-The stack hides itself from screenshots so it doesn't end up in your full-screen shots.
-To see it while testing, launch with `STACKSHOT_DEBUG=1 build/Stackshot.app/Contents/MacOS/Stackshot`.
-
-`AGENTS.md` has the architecture, conventions (logging, settings) and debugging notes. It's written
-for AI assistants, and people will find it useful too.
+[MIT](LICENSE). Use it, change it and share it, with credit.

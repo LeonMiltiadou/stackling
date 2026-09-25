@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Shows Stackshot's logs.
+# Shows Stackling's logs.
 #   scripts/logs.sh                 stream live (debug level included)
 #   scripts/logs.sh 10m             the last 10 minutes
 #   scripts/logs.sh 1h capture      the last hour, one category
@@ -11,8 +11,8 @@ set -e
 
 span=${1:-live}
 category=$2
-predicate='subsystem == "com.leonmiltiadou.stackshot"'
-[ -z "$TESTS" ] && predicate="$predicate AND process == \"Stackshot\""
+predicate='subsystem == "io.github.leonmiltiadou.stackling"'
+[ -z "$TESTS" ] && predicate="$predicate AND process == \"Stackling\""
 [ -n "$category" ] && predicate="$predicate AND category == \"$category\""
 
 if [ "$span" = "live" ]; then

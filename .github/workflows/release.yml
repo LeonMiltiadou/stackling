@@ -1,6 +1,6 @@
 name: Release
 
-# Push a tag like v0.2.0 and this builds Stackshot for Apple Silicon and Intel,
+# Push a tag like v0.2.0 and this builds Stackling for Apple Silicon and Intel,
 # stamps the version into the app, and attaches the zip to a GitHub release.
 on:
   push:
@@ -28,6 +28,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" build/Stackshot.zip \
-            --title "Stackshot ${GITHUB_REF_NAME#v}" \
+          gh release create "${GITHUB_REF_NAME}" build/Stackling.zip \
+            --title "Stackling ${GITHUB_REF_NAME#v}" \
             --generate-notes

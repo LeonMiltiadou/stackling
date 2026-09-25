@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Builds Resources/AppIcon.icns from scripts/make-icon.swift
+# Builds Resources/AppIcon.icns (and AppIcon.png) from scripts/make-icon.swift
 set -e
 cd "$(dirname "$0")/.."
 tmp=$(mktemp -d)
