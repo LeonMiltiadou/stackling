@@ -11,8 +11,16 @@ enum GIFMaker {
     static let longClipFPS: Double = 8
     /// Seconds after which a recording counts as long.
     static let longClipThreshold: Double = 30
-    /// How far a frame may drift from its requested time, which lets the generator skip exact seeks.
-    static let frameTolerance = CMTime(value: 1, timescale: 60)
+    /// How far a frame may drift from its requested time: half a GIF frame. Recordings only have a keyframe
+    /// every couple of seconds, so a tight tolerance turns almost every frame into a slow exact seek.
+    static let frameTolerance = CMTime(value: 1, timescale: 24)
+    /// GitHub's limit for images in issues and PRs, the usual place a GIF is going.
+    static let shareLimitBytes = 10 * 1024 * 1024
+
+    /// Whether a GIF is too big to drop into a GitHub issue or PR.
+    static func isTooBigToShare(_ url: URL) -> Bool {
+        ((try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0) > shareLimitBytes
+    }
 
     /// Frames per second for a recording this long.
     static func fps(forDuration seconds: Double) -> Double {

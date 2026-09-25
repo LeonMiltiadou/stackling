@@ -82,6 +82,11 @@ enum CardKeys {
     }
 
     private static func tick() {
+        guard hovered != nil else {
+            timer?.invalidate()
+            timer = nil
+            return update()
+        }
         let mouse = NSEvent.mouseLocation
         if mouse != lastMouse {
             lastMouse = mouse
@@ -91,6 +96,8 @@ enum CardKeys {
     }
 
     private static func update() {
+        // Belt and braces: a card that's no longer on the stack never holds keys, even if its "left" was missed.
+        if let shot = hovered, !ShotStore.shared.shots.contains(where: { $0 === shot }) { hovered = nil }
         let want = hovered != nil && Date().timeIntervalSince(lastMove) < quietAfter
         guard want != active else { return }
         active = want

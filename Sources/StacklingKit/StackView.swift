@@ -191,12 +191,12 @@ private struct ExpandedStack: View {
         VStack(alignment: .leading, spacing: Layout.headerSpacing) {
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
-                    Text("\(store.shots.count) screenshots")
-                        .font(.system(size: 13, weight: .semibold))
+                    AllShotsMenu(store: store)
                     Spacer()
+                        .frame(maxHeight: .infinity)
+                        .overlay(MoveGrip(store: store))
                 }
                 .frame(maxHeight: .infinity)
-                .overlay(MoveGrip(store: store))
                 if ClaudeCode.isInstalled {
                     TidyButton(compact: true)
                 }
@@ -239,6 +239,40 @@ private struct ExpandedStack: View {
     }
 }
 
+/// "6 shots ▾" at the top of the expanded stack: everything on the stack at once, for a burst of shots
+/// documenting one thing. Copies go oldest first, so steps paste in the order they happened.
+private struct AllShotsMenu: View {
+    @ObservedObject var store: ShotStore
+
+    private var title: String {
+        let n = store.shots.count
+        return store.shots.allSatisfy(\.isStill) ? "\(n) screenshot\(n == 1 ? "" : "s")" : "\(n) shot\(n == 1 ? "" : "s")"
+    }
+
+    var body: some View {
+        Menu {
+            Button("Copy All") { Actions.copyAll(store.shots) }
+            Menu("File All Into") {
+                ForEach(Library.folders(), id: \.self) { folder in
+                    Button(folder.lastPathComponent) { Actions.fileAll(store.shots, into: folder) }
+                }
+                if !Library.folders().isEmpty { Divider() }
+                Button("New Folder…") {
+                    if let folder = Library.askForNewFolder() { Actions.fileAll(store.shots, into: folder) }
+                }
+            }
+            Button("Keep All") { store.shots.forEach { $0.setKept(true) }; LibraryIndex.shared.scheduleRescan() }
+            Divider()
+            Button("Clear All") { store.clearAll() }
+        } label: {
+            Text(title).font(.system(size: 13, weight: .semibold))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Act on every shot on the stack")
+    }
+}
+
 /// ✨ Tidy: asks Claude Code to name your loose screenshots and file them into folders. Shown only when
 /// Claude Code is installed, so it's there to find without digging through menus.
 private struct TidyButton: View {
@@ -246,7 +280,8 @@ private struct TidyButton: View {
 
     var body: some View {
         Button {
-            GroomWindowController.show()
+            // The shots on the stack, not every loose shot in the library: that's what you're looking at.
+            GroomWindowController.show(files: ShotStore.shared.shots.map(\.url))
         } label: {
             Label("Tidy", systemImage: "sparkles")
                 .labelStyle(.titleAndIcon)
@@ -255,6 +290,6 @@ private struct TidyButton: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(PillButtonStyle(compact: compact))
-        .help("Tidy with Claude: suggests a clear name and a folder for each loose screenshot. You review everything before anything moves.")
+        .help("Tidy with Claude: suggests a clear name and a folder for each shot on the stack. You review everything before anything moves.")
     }
 }

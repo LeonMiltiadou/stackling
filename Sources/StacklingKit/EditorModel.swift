@@ -124,14 +124,32 @@ final class EditorModel: ObservableObject {
 
     /// Finds keys, tokens, passwords and the like, and covers each with a solid block (one undo step).
     /// Returns how many it covered.
-    func redactSecrets() async -> Int {
-        let found = await SecretCheck.filter(await SecretFinder.find(in: base))
+    /// What a Hide Secrets pass did, for the button's message.
+    enum SecretsResult: Equatable {
+        case unreadable
+        case done(hidden: Int, leftAsExamples: Int)
+
+        var message: String {
+            switch self {
+            case .unreadable: "Couldn't read the text"
+            case .done(0, 0): "None found"
+            case let .done(0, spared): "None hidden · \(spared) looked like examples"
+            case let .done(hidden, 0): "Hid \(hidden)"
+            case let .done(hidden, spared): "Hid \(hidden) · \(spared) left (looked like examples)"
+            }
+        }
+    }
+
+    func redactSecrets() async -> SecretsResult {
+        guard let candidates = await SecretFinder.find(in: base) else { return .unreadable }
+        let found = await SecretCheck.filter(candidates)
+        let spared = candidates.count - found.count
         let fresh = found.filter { secret in
             !markup.items.contains { $0.tool == .redact && $0.rect.contains(secret.rect.insetBy(dx: 1, dy: 1)) }
         }
         let kinds = Dictionary(grouping: fresh, by: \.kind).map { "\($0.key.rawValue)=\($0.value.count)" }.sorted().joined(separator: " ")
         Log.editor.info("secrets.found total=\(found.count) new=\(fresh.count) \(kinds, privacy: .public)")
-        guard !fresh.isEmpty else { return 0 }
+        guard !fresh.isEmpty else { return .done(hidden: 0, leftAsExamples: spared) }
         checkpoint()
         for secret in fresh {
             markup.items.append(Annotation(
@@ -140,7 +158,7 @@ final class EditorModel: ObservableObject {
                 color: RGBA.redactFill, width: strokeWidth, solid: true
             ))
         }
-        return fresh.count
+        return .done(hidden: fresh.count, leftAsExamples: spared)
     }
 
     // Items

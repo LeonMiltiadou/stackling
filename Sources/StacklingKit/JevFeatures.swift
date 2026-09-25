@@ -157,7 +157,7 @@ enum SecretCheck {
         var questions: [String: Jev.Question] = [:]
         for (i, secret) in found.enumerated() {
             state["candidate_\(i)"] = ["kind": secret.kind.rawValue, "looks_like": mask(secret.text),
-                                       "line": secret.line.replacingOccurrences(of: secret.text, with: "[candidate]")]
+                                       "line": line(around: secret, among: found)]
             questions["real_\(i)"] = .yesNo(
                 "Is `candidate_\(i)` a real, working secret (a live key, token, password, email or card number) rather than an example, placeholder or ordinary text?"
             )
@@ -171,6 +171,16 @@ enum SecretCheck {
             // No answer means no second opinion: cover everything, as without Jev.
             return found
         }
+    }
+
+    /// The line a match sits on, with it and every other match swapped out, so a second secret on the same
+    /// line (`KEY=… SECRET=…`) never travels in plain text either.
+    static func line(around secret: SecretFinder.Found, among found: [SecretFinder.Found]) -> String {
+        var line = secret.line
+        for other in found where !other.text.isEmpty && other.text != secret.text {
+            line = line.replacingOccurrences(of: other.text, with: "[another candidate]")
+        }
+        return secret.text.isEmpty ? line : line.replacingOccurrences(of: secret.text, with: "[candidate]")
     }
 
     /// What Jev is allowed to see instead of the secret: its first few characters, length and make-up.

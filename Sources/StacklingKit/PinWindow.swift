@@ -7,6 +7,13 @@ final class PinWindow: NSPanel {
     private static var pins: [PinWindow] = []
     /// Files on screen as pins right now; clean-up leaves them alone.
     static var pinnedFiles: [URL] { pins.compactMap(\.file) }
+    static var count: Int { pins.count }
+
+    /// Pins show on every desktop; this clears them all at once (menu bar › Close All Pins).
+    static func closeAll() {
+        Log.actions.info("pin.close-all count=\(pins.count)")
+        pins.forEach { $0.close() }
+    }
     private let file: URL?
 
     /// A new pin starts at most this fraction of the screen's width and height.
@@ -30,8 +37,8 @@ final class PinWindow: NSPanel {
     static func show(_ image: NSImage, shot: Shot?) {
         let pin = PinWindow(image: image, shot: shot)
         pins.append(pin)
+        // Shown, not focused: you pin a reference to look at while you keep typing. Click it for Esc and ⌘C.
         pin.orderFrontRegardless()
-        pin.makeKey()
         Log.actions.info("pin.show size=\(Int(image.size.width))x\(Int(image.size.height)) pins=\(pins.count)")
     }
 
@@ -100,8 +107,13 @@ final class PinWindow: NSPanel {
     }
 
     @objc func copyImage() {
-        Clipboard.write(image: image)
-        if let file { Usage.used(file, how: "pin-copy") }
+        // Same as copying the card: the picture (with edits) plus the file, not a bare TIFF.
+        if let file {
+            Clipboard.write(shot: shot ?? Shot(url: file))
+            Usage.used(file, how: "pin-copy")
+        } else {
+            Clipboard.write(image: image)
+        }
         Log.actions.info("pin.copy")
     }
 

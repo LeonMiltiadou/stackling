@@ -161,7 +161,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showWelcomeOnce() {
         guard !AppSettings.hasSeenWelcome else { return }
         AppSettings.hasSeenWelcome = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.welcomeDelay) { WelcomeAlert.show() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.welcomeDelay) { WelcomeAlert.show(firstLaunch: true) }
+    }
+
+    /// Hands ⇧⌘4 back to macOS while Stackling isn't running (quit, log out, restart), so it never goes dead.
+    /// Launch takes it over again.
+    func applicationWillTerminate(_ notification: Notification) {
+        if AppSettings.takeOverArea, !NativeShortcuts.areaShortcutEnabled {
+            NativeShortcuts.setAreaShortcut(enabled: true)
+        }
+        Log.app.notice("quit")
     }
 
     // MARK: Shortcuts
@@ -170,7 +179,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// or handed back to macOS if you've turned that off.
     private func applyShortcuts() {
         let keys = HotKeys.shared
-        let takeOver = AppSettings.takeOverArea
+        // Without Screen Recording permission Stackling can't freeze the screen, so ⇧⌘4 stays the Mac's
+        // (its shots still land on the stack). The permission needs a relaunch, which takes it over.
+        let permitted = CGPreflightScreenCaptureAccess()
+        let takeOver = AppSettings.takeOverArea && permitted
         if takeOver {
             if NativeShortcuts.areaShortcutEnabled { NativeShortcuts.setAreaShortcut(enabled: false) }
             keys.register(.four) { CaptureController.shared.start(.area) }
@@ -181,6 +193,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         keys.register(.seven) { Self.toggleRecording() }
         keys.register(.eight) { CaptureController.shared.start(.window) }
         keys.register(.nine) { CaptureController.shared.captureFullScreen() }
-        Log.keys.notice("shortcuts.applied area=\(takeOver ? "stackling" : "macos", privacy: .public)")
+        Log.keys.notice("shortcuts.applied area=\(takeOver ? "stackling" : "macos", privacy: .public) permitted=\(permitted)")
     }
 }

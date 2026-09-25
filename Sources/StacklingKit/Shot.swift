@@ -33,6 +33,7 @@ final class Shot: ObservableObject, Identifiable {
     /// You pressed Keep: clean-up never clears it. Stored on the file itself (see `Usage`).
     @Published private(set) var kept = false
     private(set) var modified: Date?
+    private var editsModified: Date?
 
     /// How long a finished or failed message stays on the card.
     nonisolated static let toastDuration: TimeInterval = 0.9
@@ -47,6 +48,7 @@ final class Shot: ObservableObject, Identifiable {
         self.url = url
         self.created = created
         self.markup = Markup.load(for: url)
+        self.editsModified = Markup.sidecarURL(for: url).modificationDate
         self.kept = Usage.read(url).keep
         refresh()
     }
@@ -72,19 +74,8 @@ final class Shot: ObservableObject, Identifiable {
 
     /// The file to hand to other apps: the original, or a flattened copy if you've annotated it.
     func exportURL() -> URL {
-        guard hasMarkup else { return url }
-        guard let rendered = renderedWithMarkup() else {
-            Log.actions.error("export.render-failed file=\(self.url.lastPathComponent, privacy: .public) fallback=original")
-            return url
-        }
-        let out = AppPaths.exports(for: id).appendingPathComponent(url.deletingPathExtension().lastPathComponent + ".png")
-        do {
-            try MarkupRenderer.writePNG(rendered, to: out, pixelScale: MarkupRenderer.pixelScale(url))
-            return out
-        } catch {
-            Log.actions.error("export.write-failed file=\(self.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public) fallback=original")
-            return url
-        }
+        // The edits on disk are the truth: the same file may have been edited from the library meanwhile.
+        Export.url(for: url)
     }
 
     /// Re-reads the file: thumbnail, dimensions, modification date.
@@ -131,6 +122,13 @@ final class Shot: ObservableObject, Identifiable {
     }
 
     func refreshIfModified() {
+        let edits = Markup.sidecarURL(for: url).modificationDate
+        if edits != editsModified {
+            // Edited elsewhere (the library opens its own copy of a shot): pick up the new edits.
+            markup = Markup.load(for: url)
+            editsModified = edits
+            return refresh()
+        }
         if let now = url.modificationDate, now != modified { refresh() }
     }
 

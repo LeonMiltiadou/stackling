@@ -31,6 +31,21 @@ enum Actions {
         store.finish(shot, message: "Filed in \(folder.lastPathComponent)")
     }
 
+    /// Every shot as files, oldest first (edits drawn in), ready to drop into a PR or chat in order.
+    static func copyAll(_ shots: [Shot]) {
+        let ordered = shots.sorted { $0.created < $1.created }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects(ordered.map { $0.exportURL() as NSURL })
+        ordered.forEach { Usage.used($0.url, how: "copy-all") }
+        Log.actions.info("copy-all count=\(ordered.count)")
+        ordered.last?.flashDone("Copied \(ordered.count)")
+    }
+
+    static func fileAll(_ shots: [Shot], into folder: URL) {
+        Log.actions.info("file-all count=\(shots.count) folder=\(folder.lastPathComponent, privacy: .public)")
+        for shot in shots { file(shot, into: folder) }
+    }
+
     static func fileIntoNewFolder(_ shot: Shot) {
         note("file-into-new-folder", shot)
         guard let folder = Library.askForNewFolder() else { return }
@@ -69,7 +84,12 @@ enum Actions {
                 let gif = try await GIFMaker.cached(for: shot)
                 Clipboard.writeGIF(at: gif)
                 Usage.used(shot.url, how: "copy-gif")
-                store.finish(shot, message: "GIF copied")
+                if GIFMaker.isTooBigToShare(gif) {
+                    // Keep the card: it'll need trimming before GitHub takes it.
+                    shot.flashFailed("Copied · over 10 MB")
+                } else {
+                    store.finish(shot, message: "GIF copied")
+                }
             } catch {
                 Log.actions.error("copy-gif.failed file=\(shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 shot.flashFailed("Couldn't make a GIF")
@@ -78,7 +98,7 @@ enum Actions {
     }
 
     /// Saves a GIF next to the recording. It lands on the stack as its own card.
-    static func saveGIF(_ shot: Shot) {
+    static func saveGIF(_ shot: Shot, then done: ((Bool) -> Void)? = nil) {
         note("save-gif", shot)
         shot.flashWorking("Making GIF…", timeout: gifToastTimeout)
         let video = shot.url
@@ -92,9 +112,11 @@ enum Actions {
                 try FileManager.default.copyItem(at: gif, to: out)
                 shot.flashDone("GIF saved")
                 store.add(out)
+                done?(true)
             } catch {
                 Log.actions.error("save-gif.failed file=\(video.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 shot.flashFailed("Couldn't make a GIF")
+                done?(false)
             }
         }
     }
@@ -199,7 +221,8 @@ enum Actions {
 
     static func copyPath(_ shot: Shot) {
         note("copy-path", shot)
-        Clipboard.write(string: shot.url.path)
+        // With edits, the path is to a copy with them drawn in, so a hidden secret stays hidden.
+        Clipboard.write(string: shot.exportURL().path)
         Usage.used(shot.url, how: "copy-path")
         shot.flashDone("Path copied")
     }

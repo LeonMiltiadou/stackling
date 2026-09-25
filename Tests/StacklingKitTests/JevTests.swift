@@ -48,6 +48,16 @@ import Testing
         #expect(AutoFiler.decide(nil, folders: folders) == nil)
     }
 
+    @Test func otherSecretsOnTheSameLineAreHiddenToo() {
+        let key = "sk_" + "live_51HxQpLmNoPqRsTuVwXyZ0123", pass = "hunter2hunter2!"
+        let line = "KEY=\(key) PASSWORD=\(pass)"
+        let found = [SecretFinder.Found(kind: .apiKey, rect: .zero, text: key, line: line),
+                     SecretFinder.Found(kind: .password, rect: .zero, text: pass, line: line)]
+        let sent = SecretCheck.line(around: found[0], among: found)
+        #expect(sent == "KEY=[candidate] PASSWORD=[another candidate]")
+        #expect(!sent.contains(pass) && !sent.contains(key))
+    }
+
     @Test func secretsAreMaskedBeforeLeaving() {
         let secret = "sk_" + "live_51HxQpLmNoPqRsTuVwXyZ0123" // made up; split so secret scanners skip it
         let masked = SecretCheck.mask(secret)

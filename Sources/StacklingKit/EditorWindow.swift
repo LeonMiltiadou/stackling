@@ -4,7 +4,13 @@ import SwiftUI
 /// One editor window per screenshot. Edits are saved to the sidecar whenever the window closes.
 @MainActor
 final class EditorWindowController: NSWindowController, NSWindowDelegate {
-    private static var openEditors: [ObjectIdentifier: EditorWindowController] = [:]
+    /// One editor per file (not per card), so the same shot opened from the stack and the library can't end
+    /// up in two editors overwriting each other's edits.
+    private static var openEditors: [String: EditorWindowController] = [:]
+    private static func key(_ shot: Shot) -> String { shot.url.standardizedFileURL.path }
+
+    /// The app you were in when the editor opened; Copy, Pin and Done take you back to it.
+    private var returnTo: NSRunningApplication?
 
     let model: EditorModel
     private let canvas: CanvasView
@@ -15,7 +21,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     static func open(_ shot: Shot) {
-        if let existing = openEditors[ObjectIdentifier(shot)] {
+        if let existing = openEditors[key(shot)] {
             Log.editor.debug("open.existing file=\(shot.url.lastPathComponent, privacy: .public)")
             NSApp.activate()
             existing.window?.makeKeyAndOrderFront(nil)
@@ -28,7 +34,9 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         }
         Log.editor.info("open file=\(shot.url.lastPathComponent, privacy: .public) items=\(model.markup.items.count)")
         let controller = EditorWindowController(model: model)
-        openEditors[ObjectIdentifier(shot)] = controller
+        openEditors[key(shot)] = controller
+        let front = NSWorkspace.shared.frontmostApplication
+        controller.returnTo = front?.processIdentifier == ProcessInfo.processInfo.processIdentifier ? nil : front
         NSApp.activate()
         controller.window?.center()
         controller.showWindow(nil)
@@ -76,12 +84,18 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
         guard model.markup != (model.shot.markup ?? Markup()) else { return }
         Log.editor.info("save file=\(self.model.shot.url.lastPathComponent, privacy: .public) items=\(self.model.markup.items.count) beautify=\(self.model.markup.beautify.enabled)")
         model.shot.setMarkup(model.markup)
+        // Another card for the same file (opened from the library vs the stack) picks up the new edits.
+        ShotStore.shared.shots.filter { $0 !== model.shot && $0.url == model.shot.url }.forEach { $0.refreshIfModified() }
     }
 
     func windowWillClose(_ notification: Notification) {
         save()
         Log.editor.info("close file=\(self.model.shot.url.lastPathComponent, privacy: .public)")
-        EditorWindowController.openEditors[ObjectIdentifier(model.shot)] = nil
+        EditorWindowController.openEditors[EditorWindowController.key(model.shot)] = nil
+        // Back to where you were, unless another Stackling window (the library, say) is what you're using.
+        if let app = returnTo, !NSApp.windows.contains(where: { $0 !== window && $0.isVisible && $0.canBecomeMain }) {
+            DispatchQueue.main.async { app.activate() }
+        }
     }
 
     private func saveCloseThen(_ next: AfterClose) {

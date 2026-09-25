@@ -119,6 +119,9 @@ final class StackPanelController {
     private func tick() {
         guard panel.isVisible else { return }
         if updateTucked() { return }
+        // While tucked behind an editor the idle clock stands still, so the stack comes back full-size,
+        // ready to drag the shot you just edited.
+        guard !tucked else { return }
         shrinkIfIdle()
     }
 

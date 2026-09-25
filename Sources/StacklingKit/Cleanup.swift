@@ -93,8 +93,11 @@ enum Cleanup {
 
     /// Clears out every loose shot whose time has come. Runs at launch and hourly.
     static func run(store: ShotStore, now: Date = Date()) {
+        // Only ever the top of the Stackling library. If screenshots save somewhere else (the Desktop,
+        // ~/Screenshots), those are your files, made before or outside Stackling: never cleared.
+        guard let folder = cleanableFolder else { return Log.library.debug("cleanup.skipped reason=save-folder-outside-library") }
         let spared = Set((store.shots.map(\.url) + PinWindow.pinnedFiles).map(\.standardizedFileURL))
-        let due = Library.looseCaptures(in: ScreenshotPrefs.screenshotFolder).filter { item in
+        let due = Library.looseCaptures(in: folder).filter { item in
             guard !spared.contains(item.url.standardizedFileURL), let plan = plan(for: item.url, created: item.created) else { return false }
             return plan.date <= now
         }
@@ -112,6 +115,12 @@ enum Cleanup {
         store.forget(due.map(\.url))
         LibraryIndex.shared.scheduleRescan()
         Log.library.notice("cleanup count=\(done) failed=\(due.count - done) action=\(action.rawValue, privacy: .public)")
+    }
+
+    /// The folder clean-up works in: the library's top level, and only while new shots save there.
+    static var cleanableFolder: URL? {
+        let save = ScreenshotPrefs.screenshotFolder.standardizedFileURL
+        return save == Library.root.standardizedFileURL ? save : nil
     }
 
     /// "Tomorrow", "in 2 days", "today".

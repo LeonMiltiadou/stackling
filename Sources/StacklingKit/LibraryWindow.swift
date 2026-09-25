@@ -16,6 +16,8 @@ final class LibraryWindowController: NSWindowController, NSWindowDelegate {
         NSApp.activate()
         controller.showWindow(nil)
         controller.window?.makeKeyAndOrderFront(nil)
+        // Opening the library is nearly always to find something: the cursor starts in search.
+        NotificationCenter.default.post(name: .libraryFocusSearch, object: nil)
         Log.library.info("library.open items=\(LibraryIndex.shared.items.count)")
     }
 
@@ -38,6 +40,11 @@ final class LibraryWindowController: NSWindowController, NSWindowDelegate {
     }
 
     required init?(coder: NSCoder) { fatalError() }
+}
+
+extension Notification.Name {
+    /// Put the cursor in the library's search box; `object` may carry text typed into the grid.
+    static let libraryFocusSearch = Notification.Name("StacklingLibraryFocusSearch")
 }
 
 // MARK: - Sections
@@ -95,6 +102,7 @@ struct LibraryView: View {
     @State private var query = ""
     @State private var selection: Set<URL> = []
     /// A short word about what just happened, e.g. "Moved 3 shots to the Trash · ⌘Z to put back".
+    @FocusState private var searchFocused: Bool
     @State private var notice: String?
     @State private var noticeID = 0
 
@@ -175,8 +183,13 @@ struct LibraryView: View {
         HStack(spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("Search the words in your shots, names and folders", text: $query)
+                TextField("Search the words in your shots, names, folders and apps", text: $query)
                     .textFieldStyle(.plain)
+                    .focused($searchFocused)
+                    .onReceive(NotificationCenter.default.publisher(for: .libraryFocusSearch)) { note in
+                        if let typed = note.object as? String { query += typed }
+                        searchFocused = true
+                    }
                 if !query.isEmpty {
                     Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }
                         .buttonStyle(.plain).foregroundStyle(.secondary)
@@ -233,6 +246,9 @@ struct LibraryView: View {
                 Text(query.isEmpty ? "Nothing in \(section.title) yet" : "No shots match “\(query)”").font(.headline)
                 if !query.isEmpty && search.pending > 0 {
                     Text("Still reading \(search.pending) shots, so more may turn up.").foregroundStyle(.secondary)
+                } else if !query.isEmpty && AppSettings.tidyAction == .trash {
+                    Text("Shots you were done with are cleared to the Trash, where they stay for 30 days.")
+                        .foregroundStyle(.secondary)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -316,7 +332,7 @@ struct LibraryTile: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
-        .task(id: item.url) { thumbnail = await Thumbnails.image(for: item.url) }
+        .task(id: item.url) { thumbnail = await Thumbnails.image(for: Markup.hasEdits(item.url) ? Export.url(for: item.url) : item.url) }
     }
 }
 
@@ -359,7 +375,7 @@ enum LibraryActions {
             Clipboard.write(shot: Shot(url: item.url, created: item.created))
         } else {
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.writeObjects(items.map { $0.url as NSURL })
+            NSPasteboard.general.writeObjects(items.map { Export.url(for: $0.url) as NSURL })
         }
         items.forEach { Usage.used($0.url, how: "library-copy") }
         Log.actions.info("library.copy count=\(items.count)")
@@ -539,7 +555,12 @@ private struct BulkActions: View {
     let done: () -> Void
 
     var body: some View {
-        Text("\(items.count) selected").foregroundStyle(.secondary).lineLimit(1).fixedSize()
+        HStack(spacing: 4) {
+            Text("\(items.count) selected").foregroundStyle(.secondary).lineLimit(1).fixedSize()
+            Button(action: done) { Image(systemName: "xmark.circle.fill") }
+                .buttonStyle(.plain).foregroundStyle(.secondary)
+                .help("Deselect (Esc, or click an empty space)")
+        }
         Button { LibraryActions.copy(items); notify("Copied") } label: { Label("Copy", systemImage: "doc.on.doc") }
             .help("Copy (⌘C)")
         Button { LibraryActions.addToStack(items) } label: { Label("Add to Stack", systemImage: "square.stack") }

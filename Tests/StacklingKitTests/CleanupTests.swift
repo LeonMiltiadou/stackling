@@ -62,3 +62,15 @@ struct LibraryTileTests {
         #expect(item("checkout-bug").shortName == "checkout-bug")
     }
 }
+
+@MainActor
+struct HideSecretsMessageTests {
+    @Test func saysWhatHappenedPlainly() {
+        typealias R = EditorModel.SecretsResult
+        #expect(R.unreadable.message == "Couldn't read the text")
+        #expect(R.done(hidden: 0, leftAsExamples: 0).message == "None found")
+        #expect(R.done(hidden: 0, leftAsExamples: 2).message == "None hidden · 2 looked like examples")
+        #expect(R.done(hidden: 3, leftAsExamples: 0).message == "Hid 3")
+        #expect(R.done(hidden: 2, leftAsExamples: 1).message == "Hid 2 · 1 left (looked like examples)")
+    }
+}

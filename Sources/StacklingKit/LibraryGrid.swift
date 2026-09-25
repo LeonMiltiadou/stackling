@@ -133,7 +133,7 @@ struct LibraryGrid: NSViewRepresentable {
         func collectionView(_ collectionView: NSCollectionView, canDragItemsAt indexPaths: Set<IndexPath>, with event: NSEvent) -> Bool { true }
 
         func collectionView(_ collectionView: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
-            items[indexPath.item].url as NSURL
+            Export.url(for: items[indexPath.item].url) as NSURL
         }
 
         func collectionView(_ collectionView: NSCollectionView, draggingSession session: NSDraggingSession,
@@ -178,7 +178,7 @@ struct LibraryGrid: NSViewRepresentable {
                              notify: { [weak self] in self?.parent.notify($0) })
         }
 
-        var previewURLs: [URL] { selectedItems.map(\.url) }
+        var previewURLs: [URL] { selectedItems.map { Export.url(for: $0.url) } }
     }
 }
 
@@ -192,9 +192,16 @@ final class LibraryCollectionView: NSCollectionView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
-        super.mouseDown(with: event)
         let point = convert(event.locationInWindow, from: nil)
-        if event.clickCount == 2, indexPathForItem(at: point) != nil { coordinator?.openSelection() }
+        let onTile = indexPathForItem(at: point) != nil
+        // A plain click on the gaps between tiles clears the selection, as in Finder. (Dragging from there
+        // still draws a selection box: that's handled by super.)
+        if !onTile, event.modifierFlags.isDisjoint(with: [.command, .shift]), !selectionIndexPaths.isEmpty {
+            deselectAll(nil)
+            coordinator?.selectionChanged()
+        }
+        super.mouseDown(with: event)
+        if event.clickCount == 2, onTile { coordinator?.openSelection() }
     }
 
     override func keyDown(with event: NSEvent) {
@@ -206,7 +213,14 @@ final class LibraryCollectionView: NSCollectionView {
         case KeyCode.escape:
             deselectAll(nil)
             coordinator?.selectionChanged()
-        default: super.keyDown(with: event)
+        default:
+            // Typing a word in the grid starts a search, as in Finder's type-to-select but for the words inside.
+            if event.modifierFlags.isDisjoint(with: [.command, .control, .option]),
+               let typed = event.characters, !typed.isEmpty, typed.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) }) {
+                NotificationCenter.default.post(name: .libraryFocusSearch, object: typed)
+            } else {
+                super.keyDown(with: event)
+            }
         }
     }
 

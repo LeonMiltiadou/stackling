@@ -54,7 +54,7 @@ import Testing
             return true
         }
         let cg = try #require(image.cgImage(forProposedRect: nil, context: nil, hints: nil))
-        let found = await SecretFinder.find(in: cg)
+        let found = try #require(await SecretFinder.find(in: cg))
         #expect(found.count == 1)
         let box = try #require(found.first?.rect)
         // Vision boxes whole words, so the box may take in "OPENAI_API_KEY=" too, but never "export",

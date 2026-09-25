@@ -200,9 +200,9 @@ private struct SecretsButton: View {
 
     private func run() async {
         working = true
-        let count = await model.redactSecrets()
+        let outcome = await model.redactSecrets()
         working = false
-        result = count == 0 ? "None found" : "Hid \(count)"
+        result = outcome.message
         try? await Task.sleep(for: .seconds(2.5))
         result = nil
     }

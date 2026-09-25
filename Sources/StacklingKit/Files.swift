@@ -93,7 +93,12 @@ enum AppPaths {
 }
 
 extension URL {
-    var modificationDate: Date? { (try? resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate }
+    /// Read fresh every time: URL caches resource values, and a stale date would hide a changed file.
+    var modificationDate: Date? {
+        var fresh = self
+        fresh.removeAllCachedResourceValues()
+        return (try? fresh.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+    }
     var creationDate: Date? { (try? resourceValues(forKeys: [.creationDateKey]))?.creationDate }
 
     /// "3.4 MB", or nil if the file can't be read.

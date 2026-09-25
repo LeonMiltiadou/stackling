@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 /// The app's menu bar menus: Stackling, Edit and Window.
 @MainActor
@@ -39,6 +40,12 @@ enum MainMenu {
         menu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         menu.addItem(withTitle: "Delete", action: #selector(NSText.delete(_:)), keyEquivalent: "")
         menu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        menu.addItem(.separator())
+        let find = ClosureMenuItem(title: "Find") {
+            LibraryWindowController.show()
+        }
+        find.keyEquivalent = "f"
+        menu.addItem(find)
         return menu
     }
 
@@ -100,6 +107,9 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
         addStackItems(to: menu)
         menu.addItem(recentlyDismissedItem())
+        if PinWindow.count > 0 {
+            menu.addItem(ClosureMenuItem(title: "Close All Pins (\(PinWindow.count))") { PinWindow.closeAll() })
+        }
         menu.addItem(.separator())
         let library = ClosureMenuItem(title: "Open Library") { LibraryWindowController.show() }
         library.image = NSImage(systemSymbolName: "square.grid.2x2", accessibilityDescription: nil)
@@ -232,34 +242,46 @@ final class ClosureMenuItem: NSMenuItem {
 /// The first-launch introduction, also under "How It Works…" in the menu bar menu.
 @MainActor
 enum WelcomeAlert {
-    static func show() {
-        Log.app.info("welcome.shown")
+    /// Shown on first launch, and from How It Works… in the menu bar. Short on purpose: what the keys are,
+    /// and what Stackling changed on this Mac. Everything else is in the README.
+    static func show(firstLaunch: Bool = false) {
+        Log.app.info("welcome.shown first=\(firstLaunch)")
         NSApp.activate()
+        let needsPermission = !CGPreflightScreenCaptureAccess()
         let alert = NSAlert()
         alert.messageText = "Stackling is running"
         alert.informativeText = """
-        \(HotKeys.Key.four.label)  Area, on a frozen screen with a pixel loupe
-        \(HotKeys.Key.eight.label)  Window
-        \(HotKeys.Key.nine.label)  Full screen
+        \(HotKeys.Key.four.label)  Area, on a frozen screen with a loupe
+        \(HotKeys.Key.eight.label)  Window     \(HotKeys.Key.nine.label)  Full screen
         \(HotKeys.Key.seven.label)  Record the screen (press again to stop)
-        ⇧⌘3 and ⇧⌘5 still work as usual.
 
-        Each shot lands in a stack in the bottom-left corner and stays there until you do something with it: copy, drag it into an app, edit, pin, grab its text, or dismiss it.
+        Every shot waits on the stack in the bottom-left corner: point at a card to copy, drag, edit or pin it. \
+        Click the Dock icon for the library, where you can search the words inside every shot.
 
-        Tips
-        • Click a card to annotate it: arrows, boxes, text, numbers, highlight, redact, and a nice background.
-        • Edits stay editable. Copy and drag include them automatically.
-        • Hold ⌥ while copying to keep the card.
-        • Dismissed cards live in the menu bar under Recently Dismissed.
-        • After a couple of quiet seconds the stack shrinks into a little box. Click it to open the stack again.
-        • Use Claude Code? ✨ Tidy on the stack asks Claude to name your screenshots and file them into folders. You check every suggestion first.
-        • Click the Dock icon (or press ⌘L) for the library: every shot in one place, searchable by the words inside them.
-
-        I switched off the macOS floating thumbnail so you don't get two previews.
-        """
+        What changed on this Mac
+        • Screenshots save to Pictures › Stackling instead of the Desktop.
+        • \(HotKeys.Key.four.label) is Stackling's while it runs. Quit, and it's the Mac's again.
+        • Loose shots you're done with clear themselves out after a few days. Press K on a card to keep one.
+        """ + (needsPermission ? "\n\nOne thing left: Stackling needs Screen Recording permission to freeze the screen. Until then, \(HotKeys.Key.four.label) works the Mac's usual way and still lands on the stack." : "")
         alert.icon = NSApp.applicationIconImage
-        alert.addButton(withTitle: "Got it")
-        alert.runModal()
+        if needsPermission {
+            alert.addButton(withTitle: "Turn On Screen Recording…")
+            alert.addButton(withTitle: "Later")
+        } else {
+            alert.addButton(withTitle: "Got it")
+        }
+        if firstLaunch {
+            alert.showsSuppressionButton = true
+            alert.suppressionButton?.title = "Open Stackling when I log in"
+            alert.suppressionButton?.state = .on
+        }
+        let answer = alert.runModal()
+        if firstLaunch, alert.suppressionButton?.state == .on {
+            do { try SMAppService.mainApp.register() } catch {
+                Log.app.error("login-item.failed error=\(error.localizedDescription, privacy: .public)")
+            }
+        }
+        if needsPermission, answer == .alertFirstButtonReturn { ScreenCapturePermission.openSettings() }
     }
 }
 

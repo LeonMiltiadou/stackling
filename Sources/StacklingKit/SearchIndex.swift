@@ -51,7 +51,8 @@ final class SearchIndex: ObservableObject {
 
     private func haystack(for item: LibraryIndex.Item) -> NSString {
         if let cached = haystacks[item.url.path] { return cached }
-        let built = [item.name, item.folder ?? "", entries[item.url.path]?.text ?? ""].joined(separator: " ").lowercased() as NSString
+        let built = [item.name, item.folder ?? "", item.source ?? "", entries[item.url.path]?.text ?? ""]
+            .joined(separator: " ").lowercased() as NSString
         haystacks[item.url.path] = built
         return built
     }

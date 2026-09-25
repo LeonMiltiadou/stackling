@@ -19,6 +19,8 @@ final class LibraryIndex: ObservableObject {
         var cleanup: Cleanup.Plan? = nil
         /// You pressed Keep on it.
         var kept = false
+        /// The app and window it was taken in, when Stackling saw it happen ("Xcode · Checkout.swift").
+        var source: String? = nil
 
         var id: URL { url }
         var name: String { url.deletingPathExtension().lastPathComponent }
@@ -104,10 +106,14 @@ final class LibraryIndex: ObservableObject {
                 let folder = isLibrary ? folderPath(of: url, in: libraryRoot) : nil
                 let created = values.creationDate ?? .distantPast
                 let note = Usage.read(url)
-                let loose = folder == nil && CaptureFile.isCapture(url) && root.standardizedFileURL == saveFolder.standardizedFileURL
+                // Mirrors Cleanup.cleanableFolder: only the library's own top level is ever cleared.
+                let loose = isLibrary && folder == nil && CaptureFile.isCapture(url)
+                    && saveFolder.standardizedFileURL == libraryRoot.standardizedFileURL
                 let plan = loose ? Cleanup.plan(note: note, created: created, edited: Markup.hasEdits(url),
                                                 usedDays: usedDays, untouchedDays: untouchedDays) : nil
-                items.append(Item(url: url, kind: kind, created: created, folder: folder, cleanup: plan, kept: note.keep))
+                let source = [note.app, note.window].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
+                items.append(Item(url: url, kind: kind, created: created, folder: folder, cleanup: plan, kept: note.keep,
+                                  source: source.isEmpty ? nil : source))
             }
         }
         return items.sorted { $0.created > $1.created }

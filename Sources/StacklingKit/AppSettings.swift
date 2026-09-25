@@ -69,7 +69,7 @@ enum AppSettings {
     }
 
     static var tidyAction: Library.TidyAction {
-        get { Library.TidyAction(rawValue: d.string(forKey: DefaultsKey.tidyAction) ?? "") ?? .archive }
+        get { Library.TidyAction(rawValue: d.string(forKey: DefaultsKey.tidyAction) ?? "") ?? .trash }
         set { d.set(newValue.rawValue, forKey: DefaultsKey.tidyAction) }
     }
 

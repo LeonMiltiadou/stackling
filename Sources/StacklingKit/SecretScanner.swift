@@ -82,7 +82,9 @@ enum SecretFinder {
     /// A little breathing room around each box so no edge of a character peeks out.
     static let padding: CGFloat = 3
 
-    static func find(in image: CGImage) async -> [Found] {
+    /// Every secret-looking match in the picture, or nil if its text couldn't be read at all
+    /// (so "none found" is never claimed for a scan that didn't happen).
+    static func find(in image: CGImage) async -> [Found]? {
         await Task.detached(priority: .userInitiated) {
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
@@ -92,10 +94,11 @@ enum SecretFinder {
                 try VNImageRequestHandler(cgImage: image).perform([request])
             } catch {
                 Log.editor.error("secrets.ocr-failed error=\(error.localizedDescription, privacy: .public)")
-                return []
+                return nil
             }
             let size = CGSize(width: image.width, height: image.height)
-            return (request.results ?? []).flatMap { observation in
+            guard let results = request.results else { return nil }
+            return results.flatMap { observation in
                 boxes(in: observation, imageSize: size)
             }
         }.value

@@ -92,6 +92,8 @@ final class DragSurfaceView: NSView, NSDraggingSource {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {
+            // The card left the stack while hovered: say so, or its keys would stay claimed system-wide.
+            if hoverCheck != nil { setHover(false) }
             hoverCheck?.invalidate()
             recheckObserver.map(NotificationCenter.default.removeObserver)
             recheckObserver = nil

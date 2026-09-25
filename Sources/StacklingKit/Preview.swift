@@ -79,6 +79,8 @@ final class PreviewModel: ObservableObject {
     @Published private(set) var gif: NSImage?
     @Published private(set) var gifInfo: String?
     @Published private(set) var gifFailed = false
+    /// Over GitHub's 10 MB limit.
+    @Published private(set) var gifTooBig = false
     /// A short message shown in place of the file info for a moment.
     @Published private(set) var note: String?
     weak var playerView: AVPlayerView?
@@ -91,7 +93,13 @@ final class PreviewModel: ObservableObject {
     init(shot: Shot) {
         self.shot = shot
         mode = shot.isVideo ? .video : .gif
-        if shot.isVideo { loadPlayer() } else { showGIF(shot.url) }
+        if shot.isVideo {
+            loadPlayer()
+            // Start on the GIF now, so it's ready by the time you look at it.
+            makeGIFIfNeeded()
+        } else {
+            showGIF(shot.url)
+        }
     }
 
     var videoInfo: String {
@@ -148,6 +156,8 @@ final class PreviewModel: ObservableObject {
             if frames > 1 { parts.append("\(frames) frames") }
         }
         if let bytes = url.formattedFileSize { parts.append(bytes) }
+        gifTooBig = GIFMaker.isTooBigToShare(url)
+        if gifTooBig { parts.append("over GitHub's 10 MB limit: trim it shorter") }
         gifInfo = parts.joined(separator: "  ·  ")
     }
 
@@ -180,7 +190,9 @@ final class PreviewModel: ObservableObject {
                 shot.refresh()
                 gif = nil
                 gifInfo = nil
+                gifTooBig = false
                 loadPlayer()
+                makeGIFIfNeeded()
                 say("Trimmed")
             } catch {
                 Log.editor.error("trim.failed file=\(original.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
@@ -252,7 +264,7 @@ struct PreviewView: View {
 
             Text(model.note ?? (model.mode == .video ? model.videoInfo : model.gifInfo ?? ""))
                 .font(.system(size: 11.5).monospacedDigit())
-                .foregroundStyle(.secondary)
+                .foregroundStyle(model.mode == .gif && model.gifTooBig && model.note == nil ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                 .lineLimit(1)
                 .truncationMode(.middle)
 
@@ -264,8 +276,10 @@ struct PreviewView: View {
                 Button("Open in QuickTime") { Actions.openInQuickTime(model.shot) }
             } else if model.shot.isVideo {
                 Button("Save GIF") {
-                    Actions.saveGIF(model.shot)
-                    model.say("GIF saved next to the video and added to the stack")
+                    model.say("Saving GIF…", sticky: true)
+                    Actions.saveGIF(model.shot) { saved in
+                        model.say(saved ? "GIF saved next to the video and added to the stack" : "Couldn't save the GIF")
+                    }
                 }
                 .disabled(model.gif == nil)
             }
@@ -273,6 +287,8 @@ struct PreviewView: View {
             Button(model.mode == .video ? "Copy Video" : "Copy GIF") {
                 if model.mode == .gif && model.shot.isVideo {
                     Actions.copyGIF(model.shot)
+                    // Too big for GitHub: stay open, so trimming it down is one click away.
+                    if model.gifTooBig { return model.say("Copied, but it's over GitHub's 10 MB limit. Trim it and copy again.", sticky: true) }
                 } else {
                     Actions.copy(model.shot)
                 }

@@ -61,7 +61,7 @@ Requires macOS 14 (Sonoma) or newer. Works on Apple Silicon and Intel Macs.
 | `⇧⌘9` | Capture the whole screen |
 | `⇧⌘7` | Record your screen. Press it again to stop |
 | `⇧⌘3` / `⇧⌘5` | The Mac's own tools still work, and their shots land in the stack too |
-| Dock icon or `⌘L` | Open the library of everything you've captured |
+| Dock icon (or `⌘L` in Stackling) | Open the library of everything you've captured |
 
 Each new shot slides into the stack. **Hover a card** to see what you can do with it:
 
@@ -97,16 +97,20 @@ you're pointing at a card, so they never get in the way of your typing.
 The **⋯** menu on a card has: File Into a folder, Name with Claude, Move to…, Show in Finder, Open in Preview,
 Pin, Save Edits Into Image, Share and Copy File Path.
 
+Took a burst of shots? Expand the stack and click its title ("6 screenshots") for **Copy All** (oldest
+first, so steps paste in order), **File All Into**, **Keep All** and **Clear All**.
+
 Drag the stack by its **✥** handle and it stays wherever you leave it. Drop it near the corner and it
 snaps back, or click **↙**. Closed a card by accident? The menu bar icon has **Recently Dismissed**.
 </details>
 
 ## The library
 
-Click Stackling's **Dock icon** (or press `⌘L`) for the library: every screenshot, recording and GIF in one
+Click Stackling's **Dock icon** (or press `⌘L` while Stackling is in front) for the library: every screenshot, recording and GIF in one
 place, grouped into Last 7 Days, Screenshots, Recordings, GIFs, your folders and the Archive.
 
 - **Search reads the words inside your shots.** Type "cart.total" and last week's error screenshot turns up.
+  It also knows which app a shot came from, so "Xcode" works. The cursor starts in search; just type.
   Stackling reads each shot once, quietly in the background, on your Mac.
 - It works like Finder. Click to select, `⌘`-click or `⇧`-click for more, or drag a box around several.
   `⌘A` selects everything shown.
@@ -136,7 +140,9 @@ Press `⇧⌘7`, then drag an area, click once for the whole screen, or press `S
 A small bar shows the time with a **Stop** button. Press `⇧⌘7` again to finish.
 
 Your recording lands in the stack. Click it to watch it, trim the start or end, or flip to the **GIF**
-view to see exactly what you'd paste into Slack. No sound is recorded.
+view to see exactly what you'd paste into Slack. The GIF is ready by the time you look, and it turns
+orange if it's over GitHub's 10 MB limit, so you can trim it shorter first. Trimming keeps the untrimmed
+original in the Trash, just in case. No sound is recorded.
 
 Want viewers to see the shortcuts you press? Turn on **Show shortcuts I press in recordings** in Settings.
 Only shortcuts appear, like `⌘C` or `⎋`, never what you type.
