@@ -19,6 +19,7 @@ final class PreviewWindowController: NSWindowController, NSWindowDelegate {
         }
         let controller = PreviewWindowController(shot: shot)
         open[ObjectIdentifier(shot)] = controller
+        Log.editor.info("preview.open file=\(shot.url.lastPathComponent, privacy: .public) kind=\(shot.isVideo ? "video" : "gif", privacy: .public)")
         NSApp.activate()
         controller.showWindow(nil)
         controller.window?.center()
@@ -28,7 +29,7 @@ final class PreviewWindowController: NSWindowController, NSWindowDelegate {
         model = PreviewModel(shot: shot)
 
         // Fit the video's shape, within most of the screen.
-        let screen = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let screen = NSScreen.mainVisibleFrame
         let pixels = shot.pixelSize ?? Self.videoSize(shot.url) ?? CGSize(width: 1280, height: 800)
         let scale = NSScreen.main?.backingScaleFactor ?? 2
         let natural = CGSize(width: pixels.width / scale, height: pixels.height / scale + PreviewView.barHeight)
@@ -82,6 +83,9 @@ final class PreviewModel: ObservableObject {
     @Published private(set) var note: String?
     weak var playerView: AVPlayerView?
 
+    /// Seconds a note stays up.
+    private static let noteDuration: TimeInterval = 3
+
     private var loop: NSObjectProtocol?
 
     init(shot: Shot) {
@@ -93,8 +97,8 @@ final class PreviewModel: ObservableObject {
     var videoInfo: String {
         var parts: [String] = []
         if let size = shot.pixelSize { parts.append("\(Int(size.width)) × \(Int(size.height))") }
-        if let seconds = shot.duration { parts.append(String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)) }
-        if let bytes = Self.fileSize(shot.url) { parts.append(bytes) }
+        if let seconds = shot.duration { parts.append(formatDuration(seconds)) }
+        if let bytes = shot.url.formattedFileSize { parts.append(bytes) }
         return parts.joined(separator: "  ·  ")
     }
 
@@ -129,6 +133,7 @@ final class PreviewModel: ObservableObject {
             do {
                 showGIF(try await GIFMaker.cached(for: shot))
             } catch {
+                Log.editor.error("gif.failed file=\(self.shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 gifFailed = true
             }
         }
@@ -142,7 +147,7 @@ final class PreviewModel: ObservableObject {
             let frames = (rep.value(forProperty: .frameCount) as? Int) ?? 0
             if frames > 1 { parts.append("\(frames) frames") }
         }
-        if let bytes = Self.fileSize(url) { parts.append(bytes) }
+        if let bytes = url.formattedFileSize { parts.append(bytes) }
         gifInfo = parts.joined(separator: "  ·  ")
     }
 
@@ -166,53 +171,32 @@ final class PreviewModel: ObservableObject {
         let end = item.forwardPlaybackEndTime.isValid ? item.forwardPlaybackEndTime : duration
         guard start > .zero || end < duration else { player?.play(); return }
 
-        say("Trimming…")
+        say("Trimming…", sticky: true)
         let original = shot.url
+        Log.editor.info("trim start=\(start.seconds, format: .fixed(precision: 2)) end=\(end.seconds, format: .fixed(precision: 2)) of=\(duration.seconds, format: .fixed(precision: 2)) file=\(original.lastPathComponent, privacy: .public)")
         Task {
             do {
-                try await Self.export(original, range: CMTimeRange(start: start, end: end))
+                try await VideoTrimmer.trim(original, to: CMTimeRange(start: start, end: end))
                 shot.refresh()
                 gif = nil
                 gifInfo = nil
                 loadPlayer()
                 say("Trimmed")
             } catch {
+                Log.editor.error("trim.failed file=\(original.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 say("Couldn't trim")
                 player?.play()
             }
         }
     }
 
-    /// Cuts the video down to `range` without re-encoding, then swaps it in place of the original.
-    private static func export(_ url: URL, range: CMTimeRange) async throws {
-        let asset = AVURLAsset(url: url)
-        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
-            throw CocoaError(.fileWriteUnknown)
-        }
-        let temp = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mov")
-        session.timeRange = range
-        if #available(macOS 15.0, *) {
-            try await session.export(to: temp, as: .mov)
-        } else {
-            session.outputURL = temp
-            session.outputFileType = .mov
-            await session.export()
-            if let error = session.error { throw error }
-        }
-        _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
-    }
-
-    func say(_ text: String) {
+    /// Shows `text` in the bar for a few seconds. A `sticky` note stays until the next one replaces it.
+    func say(_ text: String, sticky: Bool = false) {
         note = text
-        guard !text.hasSuffix("…") else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+        guard !sticky else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.noteDuration) { [weak self] in
             if self?.note == text { self?.note = nil }
         }
-    }
-
-    static func fileSize(_ url: URL) -> String? {
-        guard let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize else { return nil }
-        return ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
     }
 }
 

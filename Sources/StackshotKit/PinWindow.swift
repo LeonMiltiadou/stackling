@@ -2,19 +2,34 @@ import AppKit
 
 /// A screenshot floating above everything, like a sticky note you can reference while you work.
 /// Drag to move, scroll to zoom, double-click or Esc to close, right-click for more.
+@MainActor
 final class PinWindow: NSPanel {
     private static var pins: [PinWindow] = []
+
+    /// A new pin starts at most this fraction of the screen's width and height.
+    private static let initialScreenFraction: CGFloat = 0.5
+    /// Each new pin sits a little down and right of the last, so they don't stack exactly on top of each other.
+    private static let cascadeStep: CGFloat = 28
+    /// After this many, the cascade starts again from the centre.
+    private static let cascadeCount = 6
+    /// A mouse wheel click scrolls far less than a trackpad swipe, so it counts for this many points.
+    private static let wheelLineMultiplier: CGFloat = 8
+    /// Size change per point scrolled.
+    private static let zoomPerScrollPoint: CGFloat = 0.006
+    private static let minimumWidth: CGFloat = 80
+    /// Largest a pin can grow, in screen widths.
+    private static let maximumScreenWidths: CGFloat = 1.5
 
     let image: NSImage
     weak var shot: Shot?
     private let naturalSize: NSSize
 
-    @MainActor
     static func show(_ image: NSImage, shot: Shot?) {
         let pin = PinWindow(image: image, shot: shot)
         pins.append(pin)
         pin.orderFrontRegardless()
         pin.makeKey()
+        Log.actions.info("pin.show size=\(Int(image.size.width))x\(Int(image.size.height)) pins=\(pins.count)")
     }
 
     private init(image: NSImage, shot: Shot?) {
@@ -22,10 +37,11 @@ final class PinWindow: NSPanel {
         self.shot = shot
         self.naturalSize = image.size
 
-        let screen = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
-        let fit = min(1, (screen.width * 0.5) / max(image.size.width, 1), (screen.height * 0.5) / max(image.size.height, 1))
+        let screen = NSScreen.mainVisibleFrame
+        let fraction = Self.initialScreenFraction
+        let fit = min(1, (screen.width * fraction) / max(image.size.width, 1), (screen.height * fraction) / max(image.size.height, 1))
         let size = NSSize(width: image.size.width * fit, height: image.size.height * fit)
-        let offset = CGFloat(PinWindow.pins.count % 6) * 28
+        let offset = CGFloat(PinWindow.pins.count % Self.cascadeCount) * Self.cascadeStep
         let origin = CGPoint(x: screen.midX - size.width / 2 + offset, y: screen.midY - size.height / 2 - offset)
 
         super.init(
@@ -48,7 +64,7 @@ final class PinWindow: NSPanel {
     override var canBecomeKey: Bool { true }
 
     override func keyDown(with event: NSEvent) {
-        if event.keyCode == 53 { close(); return }
+        if event.keyCode == KeyCode.escape { close(); return }
         if event.modifierFlags.contains(.command), event.charactersIgnoringModifiers == "c" { copyImage(); return }
         super.keyDown(with: event)
     }
@@ -56,12 +72,13 @@ final class PinWindow: NSPanel {
     override func close() {
         super.close()
         PinWindow.pins.removeAll { $0 === self }
+        Log.actions.info("pin.close pins=\(PinWindow.pins.count)")
     }
 
     /// Scroll up to grow, down to shrink, around the window's centre.
     override func scrollWheel(with event: NSEvent) {
-        let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 8
-        let factor = 1 + delta * 0.006
+        let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * Self.wheelLineMultiplier
+        let factor = 1 + delta * Self.zoomPerScrollPoint
         resize(by: factor)
     }
 
@@ -73,14 +90,14 @@ final class PinWindow: NSPanel {
         let old = frame
         let screen = self.screen?.visibleFrame ?? old
         var w = old.width * factor
-        w = min(max(w, 80), screen.width * 1.5)
+        w = min(max(w, Self.minimumWidth), screen.width * Self.maximumScreenWidths)
         let h = w * naturalSize.height / max(naturalSize.width, 1)
         setFrame(CGRect(x: old.midX - w / 2, y: old.midY - h / 2, width: w, height: h), display: true)
     }
 
     @objc func copyImage() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([image])
+        Clipboard.write(image: image)
+        Log.actions.info("pin.copy")
     }
 
     @objc func actualSize() {
@@ -95,13 +112,14 @@ final class PinWindow: NSPanel {
 
     @objc func edit() {
         guard let shot else { return }
-        MainActor.assumeIsolated { EditorWindowController.open(shot) }
+        EditorWindowController.open(shot)
         close()
     }
 
     @objc func closePin() { close() }
 }
 
+@MainActor
 private final class PinView: NSView {
     weak var pin: PinWindow?
     private var dragStart: (mouse: CGPoint, origin: CGPoint)?
