@@ -21,11 +21,31 @@ enum ImageFile {
 
     /// Saves as PNG, tagged with the DPI that makes it show at the right size in other apps.
     static func writePNG(_ image: CGImage, to url: URL, pixelScale: CGFloat) throws {
-        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, "public.png" as CFString, 1, nil) else {
+        try write(image, to: url, type: "public.png" as CFString, pixelScale: pixelScale)
+    }
+
+    /// Flattening keeps the file's format and replaces it only after encoding succeeds.
+    static func overwrite(_ image: CGImage, at url: URL) throws {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let type = CGImageSourceGetType(source) else { throw CocoaError(.fileReadCorruptFile) }
+        let temp = url.deletingLastPathComponent().appendingPathComponent(".\(UUID().uuidString).\(url.pathExtension)")
+        defer {
+            if FileManager.default.fileExists(atPath: temp.path) {
+                do { try FileManager.default.removeItem(at: temp) }
+                catch { Log.editor.error("image.temp-cleanup-failed error=\(error.localizedDescription, privacy: .public)") }
+            }
+        }
+        try write(image, to: temp, type: type, pixelScale: pixelScale(url))
+        _ = try FileManager.default.replaceItemAt(url, withItemAt: temp)
+    }
+
+    private static func write(_ image: CGImage, to url: URL, type: CFString, pixelScale: CGFloat) throws {
+        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, type, 1, nil) else {
             throw CocoaError(.fileWriteUnknown)
         }
         let dpi = 72 * pixelScale
-        CGImageDestinationAddImage(dest, image, [kCGImagePropertyDPIWidth: dpi, kCGImagePropertyDPIHeight: dpi] as CFDictionary)
+        CGImageDestinationAddImage(dest, image, [kCGImagePropertyDPIWidth: dpi, kCGImagePropertyDPIHeight: dpi,
+                                                kCGImageDestinationLossyCompressionQuality: 0.95] as CFDictionary)
         guard CGImageDestinationFinalize(dest) else { throw CocoaError(.fileWriteUnknown) }
     }
 }

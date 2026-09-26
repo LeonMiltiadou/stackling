@@ -112,7 +112,7 @@ final class PinWindow: NSPanel {
     @objc func copyImage() {
         // Same as copying the card: the picture (with edits) plus the file, not a bare TIFF.
         if let file {
-            Clipboard.write(shot: shot ?? Shot(url: file))
+            guard Clipboard.write(shot: shot ?? Shot(url: file)) else { return }
             Usage.used(file, how: "pin-copy")
             ActivityLog.record(.pinCopy)
         } else {

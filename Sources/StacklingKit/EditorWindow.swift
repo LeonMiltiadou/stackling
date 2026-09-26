@@ -70,29 +70,37 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
         window.delegate = self
         canvas.onCopy = { [weak self] in self?.saveCloseThen(.copy) }
-        canvas.onDone = { [weak self] in self?.window?.close() }
+        canvas.onDone = { [weak self] in self?.window?.performClose(nil) }
         window.contentView = NSHostingView(rootView: EditorView(
             model: model, canvas: canvas,
             copy: { [weak self] in self?.saveCloseThen(.copy) },
             pin: { [weak self] in self?.saveCloseThen(.pin) },
             flatten: { [weak self] in self?.saveCloseThen(.flatten) },
-            done: { [weak self] in self?.window?.close() }
+            done: { [weak self] in self?.window?.performClose(nil) }
         ))
     }
 
     required init?(coder: NSCoder) { fatalError() }
 
-    private func save() {
+    private func save() -> Bool {
         canvas.commitText()
-        guard model.markup != (model.shot.markup ?? Markup()) else { return }
+        guard model.markup != (model.shot.markup ?? Markup()) else { return true }
         Log.editor.info("save file=\(self.model.shot.url.lastPathComponent, privacy: .public) items=\(self.model.markup.items.count) beautify=\(self.model.markup.beautify.enabled)")
-        model.shot.setMarkup(model.markup)
+        guard model.shot.setMarkup(model.markup) else {
+            let alert = NSAlert()
+            alert.messageText = "Couldn't save your edits"
+            alert.informativeText = "Check that you can write to the image's folder, then try again. Your edits are still open here."
+            alert.runModal()
+            return false
+        }
         // Another card for the same file (opened from the library vs the stack) picks up the new edits.
         ShotStore.shared.shots.filter { $0 !== model.shot && $0.url == model.shot.url }.forEach { $0.refreshIfModified() }
+        return true
     }
 
+    func windowShouldClose(_ sender: NSWindow) -> Bool { save() }
+
     func windowWillClose(_ notification: Notification) {
-        save()
         let tools = Dictionary(grouping: model.markup.items, by: \.tool.rawValue).mapValues(\.count)
         ActivityLog.record(.editorClose, ["how": closedHow, "tools": tools, "beautify": model.markup.beautify.enabled,
                                           "kind": "still", "age": Int(Date().timeIntervalSince(model.shot.created))])
@@ -106,7 +114,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
 
     private func saveCloseThen(_ next: AfterClose) {
         closedHow = next.rawValue
-        save()
+        guard save() else { return }
         let shot = model.shot
         window?.close()
         Log.editor.info("\(next.rawValue, privacy: .public) file=\(shot.url.lastPathComponent, privacy: .public)")

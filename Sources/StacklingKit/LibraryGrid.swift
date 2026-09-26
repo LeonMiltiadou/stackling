@@ -130,10 +130,17 @@ struct LibraryGrid: NSViewRepresentable {
 
         // Dragging out: every selected shot goes, and each counts as used.
 
-        func collectionView(_ collectionView: NSCollectionView, canDragItemsAt indexPaths: Set<IndexPath>, with event: NSEvent) -> Bool { true }
+        func collectionView(_ collectionView: NSCollectionView, canDragItemsAt indexPaths: Set<IndexPath>, with event: NSEvent) -> Bool {
+            LibraryDrag.begin()
+            return true
+        }
 
         func collectionView(_ collectionView: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
-            Export.url(for: items[indexPath.item].url) as NSURL
+            guard let writer = LibraryDrag.writer(for: items[indexPath.item].url) else {
+                parent.notify("Couldn't prepare image")
+                return nil
+            }
+            return writer
         }
 
         func collectionView(_ collectionView: NSCollectionView, draggingSession session: NSDraggingSession,
@@ -170,8 +177,7 @@ struct LibraryGrid: NSViewRepresentable {
         func copySelection() {
             let chosen = selectedItems
             guard !chosen.isEmpty else { return }
-            LibraryActions.copy(chosen)
-            parent.notify("Copied \(chosen.count == 1 ? "1 shot" : "\(chosen.count) shots")")
+            parent.notify(LibraryActions.copy(chosen) ? "Copied \(chosen.count == 1 ? "1 shot" : "\(chosen.count) shots")" : "Couldn't prepare images")
         }
 
         func menu(for chosen: [LibraryIndex.Item]) -> NSMenu {
@@ -179,7 +185,7 @@ struct LibraryGrid: NSViewRepresentable {
                              notify: { [weak self] in self?.parent.notify($0) })
         }
 
-        var previewURLs: [URL] { selectedItems.map { Export.url(for: $0.url) } }
+        var previewURLs: [URL] { selectedItems.compactMap { Export.url(for: $0.url) } }
     }
 }
 

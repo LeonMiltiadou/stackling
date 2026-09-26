@@ -133,6 +133,8 @@ redact (**X**), which blurs out part of the picture.
   blocks. It's quick, but give the result a glance before sharing: it can only hide what it can read.
 - Your edits stay editable. Reopen a screenshot any time and move or delete anything. Copy and drag
   always include your edits.
+- **Text** reads the edited image too, so it leaves covered text out. If edits can't be saved or
+  prepared for sharing, Stackling stops the action and tells you instead of sharing the original.
 
 ## Screen recordings
 

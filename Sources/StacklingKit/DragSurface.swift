@@ -129,9 +129,9 @@ final class DragSurfaceView: NSView, NSDraggingSource {
     }
 
     private func startDrag(with event: NSEvent) {
-        guard let shot else { return }
+        guard let shot, let url = shot.exportURL() else { return }
         Log.actions.info("drag file=\(shot.url.lastPathComponent, privacy: .public)")
-        let item = NSDraggingItem(pasteboardWriter: shot.exportURL() as NSURL)
+        let item = NSDraggingItem(pasteboardWriter: url as NSURL)
         let image = shot.thumbnail ?? NSWorkspace.shared.icon(forFile: shot.url.path)
         let maxSide = Self.dragPreviewMaxSide
         let scale = min(maxSide / max(image.size.width, 1), maxSide / max(image.size.height, 1), 1)

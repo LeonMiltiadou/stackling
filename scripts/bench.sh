@@ -5,6 +5,6 @@
 set -e
 cd "$(dirname "$0")/.."
 out=$(mktemp -d)
-swiftc -O -module-name StacklingKit Sources/StacklingKit/*.swift scripts/bench/main.swift -o "$out/bench"
+swiftc -O -target "$(uname -m)-apple-macosx14.0" -module-name StacklingKit Sources/StacklingKit/*.swift scripts/bench/main.swift -o "$out/bench"
 "$out/bench"
 rm -rf "$out"

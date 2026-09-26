@@ -167,15 +167,22 @@ enum Library {
         return dest
     }
 
-    /// Moves a file to exactly `dest`, taking its edits along. A sidecar that won't move is logged, not thrown.
+    /// A failed move must leave the image and its edits together.
     static func move(_ url: URL, to dest: URL) throws {
+        // Also adopts legacy edits before moving the image away from them.
+        Markup.adoptLegacySidecar(for: url)
+        guard !Markup.hasEdits(dest) else { throw CocoaError(.fileWriteFileExists) }
         try FileManager.default.moveItem(at: url, to: dest)
-        let sidecar = Markup.sidecarURL(for: url)
+        let currentSidecar = Markup.sidecarURL(for: url)
+        let sidecar = FileManager.default.fileExists(atPath: currentSidecar.path) ? currentSidecar : Markup.legacySidecarURL(for: url)
         guard FileManager.default.fileExists(atPath: sidecar.path) else { return }
         do {
             try FileManager.default.moveItem(at: sidecar, to: Markup.sidecarURL(for: dest))
         } catch {
             Log.library.error("sidecar.move-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            do { try FileManager.default.moveItem(at: dest, to: url) }
+            catch { Log.library.error("move.rollback-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)") }
+            throw error
         }
     }
 

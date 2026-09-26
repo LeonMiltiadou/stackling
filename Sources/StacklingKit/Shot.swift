@@ -60,10 +60,13 @@ final class Shot: ObservableObject, Identifiable {
 
     var hasMarkup: Bool { !(markup?.isEmpty ?? true) }
 
-    func setMarkup(_ new: Markup) {
+    @discardableResult
+    func setMarkup(_ new: Markup) -> Bool {
+        guard new.save(for: url) else { return false }
         markup = new.isEmpty ? nil : new
-        new.save(for: url)
+        editsModified = Markup.sidecarURL(for: url).modificationDate
         refresh()
+        return true
     }
 
     /// The image with its annotations drawn in, or nil if there are none (or the file can't be read).
@@ -73,9 +76,13 @@ final class Shot: ObservableObject, Identifiable {
     }
 
     /// The file to hand to other apps: the original, or a flattened copy if you've annotated it.
-    func exportURL() -> URL {
+    func exportURL() -> URL? {
         // The edits on disk are the truth: the same file may have been edited from the library meanwhile.
-        Export.url(for: url)
+        guard let exported = Export.url(for: url) else {
+            flashFailed("Couldn't prepare image")
+            return nil
+        }
+        return exported
     }
 
     /// Re-reads the file: thumbnail, dimensions, modification date.

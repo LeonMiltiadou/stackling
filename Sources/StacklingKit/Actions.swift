@@ -14,7 +14,7 @@ enum Actions {
 
     static func copy(_ shot: Shot) {
         note(.copy, shot)
-        Clipboard.write(shot: shot)
+        guard Clipboard.write(shot: shot) else { return }
         Usage.used(shot.url, how: "copy")
         store.finish(shot, message: "Copied")
     }
@@ -34,8 +34,12 @@ enum Actions {
     /// Every shot as files, oldest first (edits drawn in), ready to drop into a PR or chat in order.
     static func copyAll(_ shots: [Shot]) {
         let ordered = shots.sorted { $0.created < $1.created }
+        guard let exported = Export.urls(for: ordered.map(\.url)) else {
+            ordered.first?.flashFailed("Couldn't prepare images")
+            return
+        }
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects(ordered.map { $0.exportURL() as NSURL })
+        NSPasteboard.general.writeObjects(exported.map { $0 as NSURL })
         ordered.forEach { Usage.used($0.url, how: "copy-all") }
         Log.actions.info("copy-all count=\(ordered.count)")
         ActivityLog.record(.copyAll, ["count": ordered.count])
@@ -134,8 +138,11 @@ enum Actions {
         note(.flatten, shot)
         guard let rendered = shot.renderedWithMarkup() else { return }
         do {
-            try MarkupRenderer.writePNG(rendered, to: shot.url, pixelScale: MarkupRenderer.pixelScale(shot.url))
-            shot.setMarkup(Markup())
+            try ImageFile.overwrite(rendered, at: shot.url)
+            guard shot.setMarkup(Markup()) else {
+                shot.flashFailed("Couldn't clear saved edits")
+                return
+            }
             shot.flashDone("Saved into image")
         } catch {
             Log.actions.error("flatten.failed file=\(shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
@@ -146,12 +153,12 @@ enum Actions {
     static func copyText(_ shot: Shot) {
         note(.copyText, shot)
         shot.flashWorking("Reading text…", timeout: textToastTimeout)
-        let url = shot.url
+        guard let url = shot.exportURL() else { return }
         Task {
             let text = await recognizeText(at: url)
             if let text, !text.isEmpty {
                 Clipboard.write(string: text)
-                Usage.used(url, how: "copy-text")
+                Usage.used(shot.url, how: "copy-text")
                 store.finish(shot, message: "Text copied")
             } else {
                 Log.actions.info("copy-text.empty file=\(url.lastPathComponent, privacy: .public)")
@@ -203,7 +210,7 @@ enum Actions {
 
     static func pin(_ shot: Shot) {
         note(.pin, shot)
-        guard !shot.isVideo, let image = NSImage(contentsOf: shot.exportURL()) else { return }
+        guard !shot.isVideo, let url = shot.exportURL(), let image = NSImage(contentsOf: url) else { return }
         Usage.used(shot.url, how: "pin")
         PinWindow.show(image, shot: shot)
         store.finish(shot, message: "Pinned")
@@ -226,7 +233,8 @@ enum Actions {
     static func copyPath(_ shot: Shot) {
         note(.copyPath, shot)
         // With edits, the path is to a copy with them drawn in, so a hidden secret stays hidden.
-        Clipboard.write(string: shot.exportURL().path)
+        guard let url = shot.exportURL() else { return }
+        Clipboard.write(string: url.path)
         Usage.used(shot.url, how: "copy-path")
         shot.flashDone("Path copied")
     }
@@ -263,8 +271,9 @@ enum Actions {
     static func share(_ shot: Shot, with service: NSSharingService) {
         Log.actions.info("share file=\(shot.url.lastPathComponent, privacy: .public) service=\(service.title, privacy: .public)")
         ActivityLog.record(.share, activityDetails(for: shot).merging(["service": service.title]) { a, _ in a })
+        guard let url = shot.exportURL() else { return }
         NSApp.activate()
-        service.perform(withItems: [shot.exportURL()])
+        service.perform(withItems: [url])
         Usage.used(shot.url, how: "share")
         store.dismiss(shot)
     }
