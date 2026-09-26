@@ -15,10 +15,11 @@ enum Clipboard {
     }
 
     /// A shot as picture data (with edits) for apps that paste images, plus the file for apps that take files.
-    static func write(shot: Shot) {
-        if shot.isGIF { return writeGIF(at: shot.url) }
+    @discardableResult
+    static func write(shot: Shot) -> Bool {
+        if shot.isGIF { writeGIF(at: shot.url); return true }
         let item = NSPasteboardItem()
-        let file = shot.isVideo ? shot.url : shot.exportURL()
+        guard let file = shot.isVideo ? shot.url : shot.exportURL() else { return false }
         if !shot.isVideo, let data = try? Data(contentsOf: file) {
             let type = UTType(filenameExtension: file.pathExtension) ?? .png
             if type.conforms(to: .png) {
@@ -29,6 +30,7 @@ enum Clipboard {
         }
         item.setString(file.absoluteString, forType: .fileURL)
         write(item)
+        return true
     }
 
     /// GIF data for apps that paste images (browsers, Slack), plus the file for apps that take files.

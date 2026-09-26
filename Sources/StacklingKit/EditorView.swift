@@ -16,8 +16,10 @@ struct EditorView: View {
             ViewThatFits(in: .horizontal) {
                 toolbar(compact: false)
                 toolbar(compact: true)
+                toolbar(compact: true, toolsMenu: true)
             }
             .controlSize(.regular)
+            .frame(maxWidth: .infinity)
             .frame(height: 50)
             .background(.bar)
 
@@ -27,9 +29,9 @@ struct EditorView: View {
         }
     }
 
-    private func toolbar(compact: Bool) -> some View {
+    private func toolbar(compact: Bool, toolsMenu: Bool = false) -> some View {
         HStack(spacing: compact ? 6 : 10) {
-            ToolsGroup(model: model)
+            ToolsGroup(model: model, compact: toolsMenu)
             Divider().frame(height: 22)
             PaletteGroup(model: model, compact: compact)
             Divider().frame(height: 22)
@@ -79,26 +81,39 @@ struct CanvasRepresentable: NSViewRepresentable {
 
 private struct ToolsGroup: View {
     @ObservedObject var model: EditorModel
+    let compact: Bool
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(Tool.allCases) { tool in
-                Button {
-                    model.tool = tool
-                } label: {
-                    Image(systemName: tool.symbol)
-                        .font(.system(size: 13, weight: .medium))
-                        .frame(width: 28, height: 26)
-                        .foregroundStyle(model.tool == tool ? Color.white : Color.primary)
-                        .background(RoundedRectangle(cornerRadius: 6).fill(model.tool == tool ? Color.accentColor : Color.clear))
-                        .contentShape(Rectangle())
+        if compact {
+            Menu {
+                ForEach(Tool.allCases) { tool in
+                    Button { model.tool = tool } label: { Label("\(tool.title) (\(tool.key.uppercased()))", systemImage: tool.symbol) }
                 }
-                .buttonStyle(.plain)
-                .help("\(tool.title) (\(tool.key.uppercased()))")
+            } label: {
+                Label(model.tool.title, systemImage: model.tool.symbol)
             }
+            .fixedSize()
+            .help("Drawing tools")
+        } else {
+            HStack(spacing: 2) {
+                ForEach(Tool.allCases) { tool in
+                    Button {
+                        model.tool = tool
+                    } label: {
+                        Image(systemName: tool.symbol)
+                            .font(.system(size: 13, weight: .medium))
+                            .frame(width: 28, height: 26)
+                            .foregroundStyle(model.tool == tool ? Color.white : Color.primary)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(model.tool == tool ? Color.accentColor : Color.clear))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("\(tool.title) (\(tool.key.uppercased()))")
+                }
+            }
+            .padding(3)
+            .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.06)))
         }
-        .padding(3)
-        .background(RoundedRectangle(cornerRadius: 9).fill(Color.primary.opacity(0.06)))
     }
 }
 
@@ -278,11 +293,11 @@ private struct BeautifyPanel: View {
                 LabeledSlider(title: "Padding", value: Binding(
                     get: { b.padding },
                     set: { v in model.updateBeautify(checkpoint: false) { $0.padding = v } }
-                ), range: 0.02...0.2)
+                ), range: 0.02...0.2, onEditingChanged: { if $0 { model.checkpoint() } })
                 LabeledSlider(title: "Corners", value: Binding(
                     get: { b.corner },
                     set: { v in model.updateBeautify(checkpoint: false) { $0.corner = v } }
-                ), range: 0...0.05)
+                ), range: 0...0.05, onEditingChanged: { if $0 { model.checkpoint() } })
                 Toggle("Shadow", isOn: Binding(
                     get: { b.shadow },
                     set: { on in model.updateBeautify { $0.shadow = on } }
@@ -299,11 +314,12 @@ private struct LabeledSlider: View {
     let title: String
     @Binding var value: Double
     let range: ClosedRange<Double>
+    let onEditingChanged: (Bool) -> Void
 
     var body: some View {
         HStack {
             Text(title).frame(width: 60, alignment: .leading)
-            Slider(value: $value, in: range)
+            Slider(value: $value, in: range, onEditingChanged: onEditingChanged)
         }
     }
 }

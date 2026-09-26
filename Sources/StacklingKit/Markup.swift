@@ -193,16 +193,22 @@ struct Markup: Codable, Equatable {
     var isEmpty: Bool { items.isEmpty && !beautify.enabled }
 
     /// Whether a shot has edits kept beside it (arrows, boxes, hidden secrets).
-    static func hasEdits(_ url: URL) -> Bool { FileManager.default.fileExists(atPath: sidecarURL(for: url).path) }
+    static func hasEdits(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: sidecarURL(for: url).path)
+            || FileManager.default.fileExists(atPath: legacySidecarURL(for: url).path)
+    }
 
     static func sidecarURL(for url: URL) -> URL {
         url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).stackling")
     }
 
+    static func legacySidecarURL(for url: URL) -> URL {
+        url.deletingLastPathComponent().appendingPathComponent(".\(url.lastPathComponent).\(RenameMigration.legacySidecarExtension)")
+    }
+
     /// Edits saved while the app was called Stackshot end in ".stackshot". Renamed the first time they're touched.
-    private static func adoptLegacySidecar(for url: URL) {
-        let legacy = url.deletingLastPathComponent()
-            .appendingPathComponent(".\(url.lastPathComponent).\(RenameMigration.legacySidecarExtension)")
+    static func adoptLegacySidecar(for url: URL) {
+        let legacy = legacySidecarURL(for: url)
         let current = sidecarURL(for: url)
         let fm = FileManager.default
         guard fm.fileExists(atPath: legacy.path), !fm.fileExists(atPath: current.path) else { return }
@@ -216,28 +222,39 @@ struct Markup: Codable, Equatable {
 
     /// The saved edits for an image, or nil if it has none or they can't be read.
     static func load(for url: URL) -> Markup? {
-        adoptLegacySidecar(for: url)
         do {
-            return try JSONDecoder().decode(Markup.self, from: Data(contentsOf: sidecarURL(for: url)))
-        } catch CocoaError.fileReadNoSuchFile {
-            return nil
+            return try read(for: url)
         } catch {
             Log.editor.error("sidecar.read-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
             return nil
         }
     }
 
+    /// Sharing must distinguish missing edits from edits that could not be read.
+    static func read(for url: URL) throws -> Markup? {
+        adoptLegacySidecar(for: url)
+        do {
+            return try JSONDecoder().decode(Markup.self, from: Data(contentsOf: sidecarURL(for: url)))
+        } catch CocoaError.fileReadNoSuchFile {
+            do {
+                return try JSONDecoder().decode(Markup.self, from: Data(contentsOf: legacySidecarURL(for: url)))
+            } catch CocoaError.fileReadNoSuchFile { return nil }
+        }
+    }
+
     /// Writes the sidecar, or removes it when there's nothing left to keep.
-    func save(for url: URL) {
+    @discardableResult
+    func save(for url: URL) -> Bool {
         if isEmpty {
-            Markup.deleteSidecar(for: url)
-            return
+            return Markup.deleteSidecar(for: url)
         }
         do {
             try JSONEncoder().encode(self).write(to: Markup.sidecarURL(for: url), options: .atomic)
             Log.editor.debug("sidecar.written file=\(url.lastPathComponent, privacy: .public) items=\(items.count)")
+            return true
         } catch {
             Log.editor.error("sidecar.write-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 
@@ -254,14 +271,18 @@ struct Markup: Codable, Equatable {
     }
 
     /// Removes an image's sidecar, if it has one.
-    static func deleteSidecar(for url: URL) {
+    @discardableResult
+    static func deleteSidecar(for url: URL) -> Bool {
         adoptLegacySidecar(for: url)
-        let sidecar = sidecarURL(for: url)
-        guard FileManager.default.fileExists(atPath: sidecar.path) else { return }
         do {
-            try FileManager.default.removeItem(at: sidecar)
+            for sidecar in [sidecarURL(for: url), legacySidecarURL(for: url)] {
+                do { try FileManager.default.removeItem(at: sidecar) }
+                catch CocoaError.fileNoSuchFile { continue }
+            }
+            return true
         } catch {
             Log.editor.error("sidecar.delete-failed file=\(url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 }

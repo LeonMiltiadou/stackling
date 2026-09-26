@@ -148,10 +148,13 @@ struct LibraryView: View {
             guard !query.isEmpty, (try? await Task.sleep(for: .seconds(1.5))) != nil else { return }
             ActivityLog.record(.librarySearch, ["words": SearchIndex.words(in: query).count, "results": shown.count])
         }
-        .dropDestination(for: URL.self) { urls, _ in
-            // Shots dragged within the library aren't new; only things from outside get added.
-            let outside = urls.filter { !Library.contains($0) }
-            return !outside.isEmpty && Importer.add(outside, from: "library-drop") > 0
+        .onDrop(of: LibraryDrag.types, isTargeted: nil) { providers in
+            Task { @MainActor in
+                let urls = await LibraryDrag.urls(from: providers)
+                let outside = urls.filter { !Library.contains($0) }
+                if !outside.isEmpty { Importer.add(outside, from: "library-drop") }
+            }
+            return !providers.isEmpty
         }
     }
 
@@ -170,10 +173,14 @@ struct LibraryView: View {
                 Section("Folders") {
                 ForEach(index.folders, id: \.self) { name in
                     sidebarRow(.folder(name))
-                        .dropDestination(for: URL.self) { urls, _ in
-                            ActivityLog.via("drag") {
-                                LibraryActions.file(urls.filter { Library.contains($0) }, into: Library.root.appendingPathComponent(name, isDirectory: true)) > 0
+                        .onDrop(of: LibraryDrag.types, isTargeted: nil) { providers in
+                            Task { @MainActor in
+                                let urls = await LibraryDrag.urls(from: providers)
+                                ActivityLog.via("drag") {
+                                    LibraryActions.file(urls.filter { Library.contains($0) }, into: Library.root.appendingPathComponent(name, isDirectory: true))
+                                }
                             }
+                            return !providers.isEmpty
                         }
                         .contextMenu { FolderMenu(name: name) { if section == .folder(name) { section = .recent } } }
                 }
@@ -357,7 +364,9 @@ struct LibraryTile: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .contentShape(Rectangle())
-        .task(id: item.url) { thumbnail = await Thumbnails.image(for: Markup.hasEdits(item.url) ? Export.url(for: item.url) : item.url) }
+        .task(id: item.url) {
+            if let url = Export.url(for: item.url) { thumbnail = await Thumbnails.image(for: url) }
+        }
     }
 }
 
@@ -396,16 +405,19 @@ enum LibraryActions {
     }
 
     /// One shot copies as a picture (and a file); several copy as files, ready to drop into a chat or PR.
-    static func copy(_ items: [LibraryIndex.Item]) {
+    @discardableResult
+    static func copy(_ items: [LibraryIndex.Item]) -> Bool {
         if items.count == 1, let item = items.first {
-            Clipboard.write(shot: Shot(url: item.url, created: item.created))
+            guard Clipboard.write(shot: Shot(url: item.url, created: item.created)) else { return false }
         } else {
+            guard let exported = Export.urls(for: items.map(\.url)) else { return false }
             NSPasteboard.general.clearContents()
-            NSPasteboard.general.writeObjects(items.map { Export.url(for: $0.url) as NSURL })
+            NSPasteboard.general.writeObjects(exported.map { $0 as NSURL })
         }
         items.forEach { Usage.used($0.url, how: "library-copy") }
         Log.actions.info("library.copy count=\(items.count)")
         ActivityLog.record(.libraryCopy, ["count": items.count])
+        return true
     }
 
     /// Moves shots to the Trash. With an undo manager, ⌘Z puts them back where they were, edits and all.
@@ -502,7 +514,7 @@ enum LibraryMenu {
             menu.addItem(ClosureMenuItem(title: one.kind == .still ? "Open in Editor" : "Preview") { LibraryActions.open(one) })
         }
         menu.addItem(ClosureMenuItem(title: "Add\(noun) to Stack") { LibraryActions.addToStack(items); notify("Added to the stack") })
-        menu.addItem(ClosureMenuItem(title: "Copy\(noun)") { LibraryActions.copy(items); notify(items.count == 1 ? "Copied" : "Copied \(items.count) shots") })
+        menu.addItem(ClosureMenuItem(title: "Copy\(noun)") { notify(LibraryActions.copy(items) ? (items.count == 1 ? "Copied" : "Copied \(items.count) shots") : "Couldn't prepare images") })
         if let one, one.kind == .video {
             menu.addItem(ClosureMenuItem(title: "Copy as GIF") { Actions.copyGIF(Shot(url: one.url, created: one.created)) })
         }
@@ -593,7 +605,7 @@ private struct BulkActions: View {
                 .buttonStyle(.plain).foregroundStyle(.secondary)
                 .help("Deselect (Esc, or click an empty space)")
         }
-        Button { LibraryActions.copy(items); notify("Copied") } label: { Label("Copy", systemImage: "doc.on.doc") }
+        Button { notify(LibraryActions.copy(items) ? "Copied" : "Couldn't prepare images") } label: { Label("Copy", systemImage: "doc.on.doc") }
             .help("Copy (⌘C)")
         Button { LibraryActions.addToStack(items) } label: { Label("Add to Stack", systemImage: "square.stack") }
             .help("Put them back on the stack in the corner")

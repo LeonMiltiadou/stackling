@@ -68,6 +68,8 @@ final class EditorModel: ObservableObject {
 
     private var undoStack: [Markup] = []
     private var redoStack: [Markup] = []
+    private var cancelledRedoStack: [Markup] = []
+    private var droppedUndo: Markup?
 
     init?(shot: Shot) {
         guard let base = ImageFile.load(shot.url) else { return nil }
@@ -82,9 +84,11 @@ final class EditorModel: ObservableObject {
     // Undo
 
     func checkpoint() {
+        cancelledRedoStack = redoStack
+        droppedUndo = nil
         undoStack.append(markup)
         if undoStack.count > EditorModel.maxUndoSteps {
-            undoStack.removeFirst()
+            droppedUndo = undoStack.removeFirst()
             Log.editor.debug("undo.limit-reached steps=\(EditorModel.maxUndoSteps)")
         }
         redoStack.removeAll()
@@ -94,11 +98,17 @@ final class EditorModel: ObservableObject {
     /// Throws away the last checkpoint when a gesture ended up doing nothing.
     func dropCheckpoint() {
         if let last = undoStack.popLast() { markup = last }
+        if let droppedUndo { undoStack.insert(droppedUndo, at: 0) }
+        droppedUndo = nil
+        redoStack = cancelledRedoStack
+        cancelledRedoStack = []
         updateFlags()
     }
 
     func undo() {
         guard let last = undoStack.popLast() else { return }
+        cancelledRedoStack = []
+        droppedUndo = nil
         ActivityLog.record(.editorUndo)
         redoStack.append(markup)
         markup = last
@@ -109,6 +119,8 @@ final class EditorModel: ObservableObject {
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
+        cancelledRedoStack = []
+        droppedUndo = nil
         undoStack.append(markup)
         markup = next
         selection = nil

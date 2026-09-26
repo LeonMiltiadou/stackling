@@ -39,7 +39,7 @@ struct ExportTests {
         let shot = try whitePicture(in: folder)
         blackBox().save(for: shot)
 
-        let shared = Export.url(for: shot)
+        let shared = try #require(Export.url(for: shot))
         #expect(shared != shot, "never the untouched original")
         #expect(try centreBrightness(shot) > 0.9)
         #expect(try centreBrightness(shared) < 0.1, "the black box is in the pixels")
@@ -49,16 +49,16 @@ struct ExportTests {
         let folder = try TempFolder()
         let shot = try whitePicture(in: folder)
         blackBox().save(for: shot)
-        let first = Export.url(for: shot)
+        let first = try #require(Export.url(for: shot))
         let made = try #require(first.modificationDate)
-        #expect(Export.url(for: shot).modificationDate == made, "no redraw when nothing changed")
+        #expect(Export.url(for: shot)?.modificationDate == made, "no redraw when nothing changed")
 
         // Newer edits (here: all removed but beautify on) must produce a fresh copy.
         Thread.sleep(forTimeInterval: 1.1)
         var edited = Markup()
         edited.beautify.enabled = true
         edited.save(for: shot)
-        let second = Export.url(for: shot)
+        let second = try #require(Export.url(for: shot))
         #expect(try #require(second.modificationDate) > made)
     }
 }
