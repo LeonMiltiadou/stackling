@@ -57,4 +57,21 @@ import Testing
         let frame = StackPanelController.targetFrame(count: 3, expanded: false, minimized: false, origin: nil, visible: small)
         #expect(frame.height == small.height)
     }
+
+    /// The stack shrinks after a quiet spell, but not out from under a pointer reaching for "N more":
+    /// the pill would vanish and the click land on nothing.
+    @MainActor @Test func aPointerOnOrHeadingForTheStackKeepsItOpen() {
+        let stack = StackPanelController.targetFrame(count: 4, expanded: false, minimized: false, origin: nil, visible: visible)
+        let pill = NSPoint(x: stack.minX + Layout.pad + 50, y: stack.maxY - Layout.pad - Layout.pillH / 2)
+        func keeps(_ pointer: NSPoint, from previous: NSPoint?) -> Bool {
+            StackPanelController.pointerKeepsOpen(pointer, previous: previous, stack: stack)
+        }
+        #expect(keeps(pill, from: pill))
+        #expect(keeps(NSPoint(x: 400, y: 560), from: NSPoint(x: 600, y: 700)), "heading for the pill")
+        #expect(keeps(NSPoint(x: 120, y: 410), from: NSPoint(x: 200, y: 480)), "the last stretch")
+        #expect(!keeps(NSPoint(x: 600, y: 700), from: NSPoint(x: 400, y: 560)), "moving away")
+        #expect(!keeps(NSPoint(x: 900, y: 600), from: NSPoint(x: 900, y: 600)), "resting elsewhere")
+        #expect(!keeps(NSPoint(x: 599, y: 699), from: NSPoint(x: 600, y: 700)), "a hand on the mouse")
+        #expect(!keeps(NSPoint(x: 900, y: 600), from: nil), "the first look, far away")
+    }
 }

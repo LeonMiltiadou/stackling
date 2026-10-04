@@ -185,8 +185,19 @@ final class ShotStore: ObservableObject {
         Log.stack.notice("prune count=\(missing.count) remaining=\(self.shots.count)")
     }
 
+    /// The whole list is on screen: expanded, and not shrunk into the little box.
+    var showsWholeStack: Bool { expanded && !minimized }
+
+    /// Opens the whole stack, or folds it back. Opening a shrunk stack also un-shrinks it, or the
+    /// menu's Expand Stack would change nothing you can see.
     func toggleExpanded() {
-        withAnimation(spring) { expanded = shots.count > 1 ? !expanded : false }
+        let open = !showsWholeStack && shots.count > 1
+        let unshrink = open && minimized
+        withAnimation(spring) {
+            expanded = open
+            if unshrink { minimized = false }
+        }
+        if unshrink { Log.stack.info("restored reason=expand") }
         Log.stack.info("expanded=\(self.expanded)")
         ActivityLog.record(expanded ? .expand : .collapse, ["count": shots.count])
     }

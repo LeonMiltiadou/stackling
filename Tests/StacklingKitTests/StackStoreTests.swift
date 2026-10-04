@@ -56,6 +56,44 @@ final class TempFolder {
         #expect(!store.expanded)
     }
 
+    @Test func expandingAShrunkStackOpensTheWholeList() throws {
+        let folder = try TempFolder()
+        let store = ShotStore()
+        store.add(try folder.file("Screenshot a.png"))
+        store.add(try folder.file("Screenshot b.png"))
+        store.setMinimized(true, reason: "idle")
+        // Menu bar › Expand Stack.
+        store.toggleExpanded()
+        #expect(store.expanded)
+        #expect(!store.minimized, "still shrunk, so nothing you can see would change")
+        #expect(store.showsWholeStack)
+    }
+
+    @Test func aStackThatShrankWhileOpenOpensAgainFromTheMenu() throws {
+        let folder = try TempFolder()
+        let store = ShotStore()
+        store.add(try folder.file("Screenshot a.png"))
+        store.add(try folder.file("Screenshot b.png"))
+        store.toggleExpanded()
+        store.setMinimized(true, reason: "idle")
+        #expect(!store.showsWholeStack, "the menu offers Expand Stack, not Collapse")
+        store.toggleExpanded()
+        #expect(store.showsWholeStack)
+        store.toggleExpanded()
+        #expect(!store.expanded)
+        #expect(!store.minimized)
+    }
+
+    @Test func aShrunkStackOfOneStaysShrunk() throws {
+        let folder = try TempFolder()
+        let store = ShotStore()
+        store.add(try folder.file("Screenshot a.png"))
+        store.setMinimized(true, reason: "idle")
+        store.toggleExpanded()
+        #expect(!store.expanded)
+        #expect(store.minimized)
+    }
+
     @Test func recentlyDismissedIsCapped() throws {
         let folder = try TempFolder()
         let store = ShotStore()
