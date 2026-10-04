@@ -25,6 +25,12 @@ final class StackPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// The stack's SwiftUI host. The panel never becomes key, so like the cards' drag surfaces it takes the
+/// first click itself: a click on "N more" or the shrunk box acts straight away rather than being used up.
+final class StackHostingView: NSHostingView<StackView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 private extension NSPoint {
     func offsetBy(_ d: CGFloat) -> NSPoint { NSPoint(x: x + d, y: y + d) }
 }
@@ -65,9 +71,7 @@ final class StackPanelController {
 
     init(store: ShotStore) {
         self.store = store
-        let host = NSHostingView(rootView: StackView(store: store))
-        host.sizingOptions = []
-        panel.contentView = host
+        panel.contentView = Self.makeHost(for: store)
 
         Publishers.CombineLatest4(store.$shots, store.$expanded, store.$customOrigin, store.$minimized)
             .receive(on: RunLoop.main)
@@ -89,6 +93,12 @@ final class StackPanelController {
             .sink { [weak self] _ in self?.rescueIfStranded() }
             .store(in: &bag)
 
+    }
+
+    static func makeHost(for store: ShotStore) -> NSView {
+        let host = StackHostingView(rootView: StackView(store: store))
+        host.sizingOptions = []
+        return host
     }
 
     /// Polling rather than tracking areas: it keeps working while the panel is tucked away and ignoring
