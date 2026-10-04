@@ -95,6 +95,7 @@ final class StackPanelController {
 
     }
 
+    /// The panel's content, apart from the panel so tests can lay it out and click-test it with no window.
     static func makeHost(for store: ShotStore) -> NSView {
         let host = StackHostingView(rootView: StackView(store: store))
         host.sizingOptions = []
