@@ -70,7 +70,9 @@ enum DevCopy {
         Outside.makeInert()
         ActivityLog.diagnostics = true
         AppSettings.registerDefaults()
-        UserDefaults.standard.set(true, forKey: DefaultsKey.activityLog)
+        // Registered, not set: settings live in ~/Library/Preferences whatever home Dev is given, and a
+        // registered value is only ever in memory.
+        UserDefaults.standard.register(defaults: [DefaultsKey.activityLog: true])
         let app = NSApplication.shared
         let delegate = AppDelegate(dev: true)
         app.delegate = delegate
