@@ -46,7 +46,7 @@ enum Importer {
 
     /// True when there's something on the clipboard that Paste to Stack can use.
     static var clipboardHasSomething: Bool {
-        let pb = NSPasteboard.general
+        let pb = Clipboard.board
         return pb.canReadObject(forClasses: [NSImage.self], options: nil)
             || pb.canReadObject(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
     }
@@ -54,7 +54,7 @@ enum Importer {
     /// Stackling › Paste to Stack: copied files go straight in; a copied picture is saved into the
     /// library first (named like a screenshot, so tidying treats it the same way).
     static func pasteFromClipboard() {
-        let pb = NSPasteboard.general
+        let pb = Clipboard.board
         if let urls = pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL], !urls.isEmpty {
             add(urls, from: "clipboard-files")
             return

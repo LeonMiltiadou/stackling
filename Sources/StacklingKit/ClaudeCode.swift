@@ -38,7 +38,8 @@ enum ClaudeCode {
     static let timeout: Duration = .seconds(300)
 
     /// Whether Claude Code is on this Mac. Looked up once (it can take a moment), so warm it up off the main thread.
-    static let isInstalled: Bool = executable() != nil
+    /// Stackling Dev never uses it.
+    static let isInstalled: Bool = !AppIdentity.current.isDev && executable() != nil
 
     /// Where `claude` usually lives. Apps don't get your shell's PATH, so we look in the usual places,
     /// then ask a login shell as a last resort.

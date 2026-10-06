@@ -21,6 +21,9 @@ final class ShotStore: ObservableObject {
     @Published private(set) var recent: [Shot] = []
     /// Set by the panel controller based on the screen it lives on.
     @Published var maxListHeight: CGFloat = 600
+    /// Where the stack's buttons are laid out, in its host's coordinates (top-left origin). Not published:
+    /// only read when aiming at them.
+    var targetFrames: [StackTarget: CGRect] = [:]
     /// Where you dragged the stack to (the panel's bottom-left), or nil for the usual corner.
     @Published var customOrigin: NSPoint? {
         didSet {
@@ -35,6 +38,9 @@ final class ShotStore: ObservableObject {
     }
 
     private let spring = Animation.spring(response: 0.38, dampingFraction: 0.82)
+    /// Off for a scripted stack whose clock only moves when told: an animation it can't wait out would
+    /// leave a card mid-slide over "3 more".
+    var animates = true
 
     /// A brand-new screenshot or recording. Also copies it if you've asked for that.
     func addCapture(_ url: URL, created: Date = Date()) {
@@ -140,7 +146,7 @@ final class ShotStore: ObservableObject {
     func setMinimized(_ on: Bool, reason: String) {
         guard on != minimized else { return }
         if !on, reason == "click" { ActivityLog.record(.unshrink) }
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) { minimized = on }
+        withAnimation(animates ? .spring(response: 0.32, dampingFraction: 0.86) : nil) { minimized = on }
         Log.stack.info("\(on ? "minimized" : "restored", privacy: .public) reason=\(reason, privacy: .public)")
     }
 
@@ -193,7 +199,7 @@ final class ShotStore: ObservableObject {
     func toggleExpanded() {
         let open = !showsWholeStack && shots.count > 1
         let unshrink = open && minimized
-        withAnimation(spring) {
+        withAnimation(animates ? spring : nil) {
             expanded = open
             if unshrink { minimized = false }
         }
@@ -206,7 +212,7 @@ final class ShotStore: ObservableObject {
 
     /// Takes cards off the stack, and folds it back up once there's at most one left.
     private func removeFromStack(where gone: (Shot) -> Bool) {
-        withAnimation(spring) {
+        withAnimation(animates ? spring : nil) {
             shots.removeAll(where: gone)
             if shots.count <= 1 { expanded = false }
         }
@@ -214,7 +220,7 @@ final class ShotStore: ObservableObject {
 
     /// Puts cards on top of the stack and opens it if it had shrunk.
     private func insertOnTop(_ new: [Shot]) {
-        withAnimation(spring) {
+        withAnimation(animates ? spring : nil) {
             shots.insert(contentsOf: new, at: 0)
             minimized = false
         }

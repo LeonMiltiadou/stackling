@@ -268,6 +268,7 @@ git clone https://github.com/LeonMiltiadou/stackling.git
 cd stackling
 scripts/build.sh install   # build, copy to /Applications and open
 swift test                 # run the tests
+scripts/dev.sh check       # a hidden Stackling Dev uses the stack while you keep working
 scripts/logs.sh 10m        # see what the app did in the last 10 minutes
 ```
 

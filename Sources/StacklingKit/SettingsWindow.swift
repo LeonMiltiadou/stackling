@@ -9,6 +9,7 @@ final class SettingsWindowController: NSWindowController {
     static let size = CGSize(width: 520, height: 460)
 
     static func show() {
+        guard Outside.allows("settings-window") else { return }
         let controller = shared ?? SettingsWindowController()
         shared = controller
         NSApp.activate()

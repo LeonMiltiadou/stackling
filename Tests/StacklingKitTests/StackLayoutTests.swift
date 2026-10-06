@@ -75,23 +75,48 @@ import Testing
         #expect(!keeps(NSPoint(x: 900, y: 600), from: nil), "the first look, far away")
     }
 
+    /// The stack in a panel that's built but never ordered in, as Stackling Dev has it. AppKit only finds
+    /// the cards' views when hit-testing inside a window; no window manager sees one that was never shown.
+    @MainActor private func hiddenPanel(for store: ShotStore, size: CGSize) -> (StackPanel, NSView) {
+        let panel = StackPanel()
+        let host = StackPanelController.makeHost(for: store)
+        panel.contentView = host
+        panel.setFrame(CGRect(origin: .zero, size: size), display: false)
+        host.layoutSubtreeIfNeeded()
+        return (panel, host)
+    }
+
     /// The panel never becomes key, so the view a click lands on must take the first click itself, or a
-    /// click on "N more" can be used up just bringing the panel forward.
+    /// click on "N more" can be used up just bringing the panel forward. Aims at where each button is laid
+    /// out and checks it's what's there: this test once aimed with the y flipped and hit the card instead.
     @MainActor @Test func theStackTakesTheFirstClick() throws {
         let folder = try TempFolder()
         let store = ShotStore()
         for name in ["a", "b", "c", "d"] { store.add(try folder.file("Screenshot \(name).png")) }
-        func firstClick(at point: (CGSize) -> NSPoint) -> Bool? {
+        func firstClick(on target: StackTarget) throws -> Bool? {
             let size = StackPanelController.targetFrame(count: 4, expanded: false, minimized: store.minimized, origin: nil, visible: visible).size
-            let host = StackPanelController.makeHost(for: store)
-            host.frame = CGRect(origin: .zero, size: size)
-            host.layoutSubtreeIfNeeded()
-            var p = point(size)
-            if !host.isFlipped { p.y = size.height - p.y }
-            return host.hitTest(p)?.acceptsFirstMouse(for: nil)
+            let (panel, host) = hiddenPanel(for: store, size: size)
+            defer { withExtendedLifetime(panel) {} }
+            let frame = try #require(store.targetFrames[target], "\(target) is laid out")
+            let aimed = StackPanelController.aim(at: NSPoint(x: frame.midX, y: frame.midY), in: host, store: store)
+            #expect(aimed.target == target, "\(target) is what's under its own middle, not a card")
+            return aimed.hit?.acceptsFirstMouse(for: nil)
         }
-        #expect(firstClick { _ in NSPoint(x: Layout.pad + 40, y: Layout.pad + Layout.pillH / 2) } == true, "the \"3 more\" pill")
+        #expect(try firstClick(on: .more) == true, "the \"3 more\" pill")
         store.setMinimized(true, reason: "idle")
-        #expect(firstClick { NSPoint(x: Layout.pad + 40, y: $0.height - Layout.pad - 28) } == true, "the shrunk box")
+        #expect(try firstClick(on: .shrunk) == true, "the shrunk box")
+    }
+
+    /// A point on the card is the card's drag surface, not a stack button, so aiming can tell them apart.
+    @MainActor @Test func aimingAtTheCardFindsTheCard() throws {
+        let folder = try TempFolder()
+        let store = ShotStore()
+        for name in ["a", "b", "c", "d"] { store.add(try folder.file("Screenshot \(name).png")) }
+        let size = StackPanelController.targetFrame(count: 4, expanded: false, minimized: false, origin: nil, visible: visible).size
+        let (panel, host) = hiddenPanel(for: store, size: size)
+        defer { withExtendedLifetime(panel) {} }
+        let aimed = StackPanelController.aim(at: NSPoint(x: size.width / 2, y: size.height - Layout.pad - 20), in: host, store: store)
+        #expect(aimed.target == nil)
+        #expect(aimed.hit is DragSurfaceView)
     }
 }

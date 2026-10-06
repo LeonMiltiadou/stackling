@@ -10,7 +10,7 @@ import os
 /// Levels: `debug` for chatty state changes (hidden unless you ask for them), `info` for things
 /// you did, `notice` for things the app did on its own, `error` for failures.
 enum Log {
-    static let subsystem = "io.github.leonmiltiadou.stackling"
+    static let subsystem = AppIdentity.current.logSubsystem
 
     /// Launch, permissions, menus, settings.
     static let app = Logger(subsystem: subsystem, category: "app")

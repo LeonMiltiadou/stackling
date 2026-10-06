@@ -24,6 +24,7 @@ final class EditorWindowController: NSWindowController, NSWindowDelegate {
     }
 
     static func open(_ shot: Shot) {
+        guard Outside.allows("editor") else { return }
         if let existing = openEditors[key(shot)] {
             Log.editor.debug("open.existing file=\(shot.url.lastPathComponent, privacy: .public)")
             NSApp.activate()

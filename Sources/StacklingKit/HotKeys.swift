@@ -73,6 +73,8 @@ final class HotKeys {
 
     /// Any key and modifiers, under an id of your choosing (keep them clear of the capture keys' ids).
     func register(id: UInt32, keyCode: UInt32, modifiers: UInt32, _ handler: @escaping () -> Void) {
+        // Hot keys are system-wide: Stackling Dev claiming one would take it from you.
+        guard !AppIdentity.current.isDev else { return Log.keys.notice("hotkey.skipped id=\(id) reason=dev") }
         install()
         unregister(id: id)
         var ref: EventHotKeyRef?

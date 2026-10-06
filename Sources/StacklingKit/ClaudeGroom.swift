@@ -11,6 +11,7 @@ final class GroomWindowController: NSWindowController, NSWindowDelegate {
 
     /// Tidies the loose screenshots in the save folder, or just `files` when given (a selection in the library).
     static func show(files: [URL]? = nil) {
+        guard Outside.allows("tidy-window") else { return }
         ActivityLog.record(.tidyOpen, ["shots": files?.count ?? -1])
         if let shared {
             guard files != nil else {

@@ -54,6 +54,24 @@ enum CardKeys {
         return rows
     }
 
+    /// What card keys read from the world and how they claim keys. Live in the app; tests script them.
+    @MainActor
+    struct Senses {
+        var now: () -> Date
+        var pointer: () -> NSPoint
+        var isOnStack: (Shot) -> Bool
+        /// Claims (true) or lets go of (false) every card key.
+        var claim: (Bool) -> Void
+        /// Whether to poll on a timer. Off when a script ticks by hand.
+        var polls: Bool
+
+        static let live = Senses(now: Date.init, pointer: { NSEvent.mouseLocation },
+                                 isOnStack: { shot in ShotStore.shared.shots.contains { $0 === shot } },
+                                 claim: { CardKeys.registerHotKeys($0) }, polls: true)
+    }
+
+    static var senses = Senses.live
+
     private static weak var hovered: Shot?
     private static var active = false
     private static var lastMouse = NSPoint.zero
@@ -64,10 +82,10 @@ enum CardKeys {
 
     static func hover(_ shot: Shot) {
         hovered = shot
-        lastMove = Date()
-        lastMouse = NSEvent.mouseLocation
+        lastMove = senses.now()
+        lastMouse = senses.pointer()
         update()
-        guard timer == nil else { return }
+        guard senses.polls, timer == nil else { return }
         timer = Timer.scheduledTimer(withTimeInterval: pollInterval, repeats: true) { _ in
             MainActor.assumeIsolated { tick() }
         }
@@ -81,27 +99,34 @@ enum CardKeys {
         update()
     }
 
-    private static func tick() {
+    /// One poll. The timer calls it; a script with its own clock calls it by hand.
+    static func tick() {
         guard hovered != nil else {
             timer?.invalidate()
             timer = nil
             return update()
         }
-        let mouse = NSEvent.mouseLocation
+        let mouse = senses.pointer()
         if mouse != lastMouse {
             lastMouse = mouse
-            lastMove = Date()
+            lastMove = senses.now()
         }
         update()
     }
 
     private static func update() {
         // Belt and braces: a card that's no longer on the stack never holds keys, even if its "left" was missed.
-        if let shot = hovered, !ShotStore.shared.shots.contains(where: { $0 === shot }) { hovered = nil }
-        let want = hovered != nil && Date().timeIntervalSince(lastMove) < quietAfter
+        if let shot = hovered, !senses.isOnStack(shot) { hovered = nil }
+        let want = hovered != nil && senses.now().timeIntervalSince(lastMove) < quietAfter
         guard want != active else { return }
         active = want
         Log.keys.debug("card-keys claimed=\(want)")
+        senses.claim(want)
+    }
+
+    /// Registers every card key as a Carbon hot key, or lets them all go. Stackling Dev never does.
+    private static func registerHotKeys(_ want: Bool) {
+        guard !AppIdentity.current.isDev else { return Log.keys.notice("card-keys.skipped reason=dev") }
         for b in bindings {
             if want {
                 HotKeys.shared.register(id: b.id, keyCode: UInt32(b.keyCode), modifiers: UInt32(b.modifiers)) {

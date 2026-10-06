@@ -1,16 +1,46 @@
 import AppKit
 import Combine
 
+/// What happens at launch, in order. Stackling Dev runs only the hidden stack: everything else touches
+/// the Mac you're using (menu bar, Dock, screenshot settings, files, global keys) or the real app's things.
+enum LaunchStep: CaseIterable {
+    case findClaude, mainMenu, stackPanel, statusItem, dockBadge, recordingIcon, nativeThumbnail, adoptDesktopShots
+    case restoreStack, watchScreenshots, tidying, libraryIndex, warmUpGrabber, observeSettings, excludeStackFromCaptures
+    case shortcuts, welcome
+
+    static let touchesTheMac: Set<LaunchStep> = [
+        .findClaude, .statusItem, .dockBadge, .recordingIcon, .nativeThumbnail, .adoptDesktopShots, .watchScreenshots,
+        .tidying, .libraryIndex, .warmUpGrabber, .observeSettings, .shortcuts, .welcome,
+    ]
+
+    static func plan(dev: Bool) -> [LaunchStep] { dev ? [.stackPanel] : allCases }
+}
+
+/// What happens on quit. Stackling Dev never took ⇧⌘4, so it never hands it back either.
+enum QuitStep {
+    case handBackAreaShortcut, log
+
+    static func plan(dev: Bool) -> [QuitStep] { dev ? [.log] : [.handBackAreaShortcut, .log] }
+}
+
 /// Wires the pieces together at launch. The menus live in Menus.swift.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = ShotStore.shared
+    /// Stackling Dev, read once at launch: see `LaunchStep`.
+    private let dev: Bool
     private var panel: StackPanelController!
-    private var watcher: ScreenshotWatcher!
-    private var statusItem: NSStatusItem!
-    private var statusMenu: StatusMenu!
+    private var watcher: ScreenshotWatcher?
+    private var statusItem: NSStatusItem?
+    private var statusMenu: StatusMenu?
     private var bag = Set<AnyCancellable>()
     private var tidyTimer: Timer?
+    /// The launch steps that ran, for the test that Dev skips the rest.
+    private(set) var ranSteps: [LaunchStep] = []
+
+    init(dev: Bool? = nil) {
+        self.dev = dev ?? AppIdentity.current.isDev
+    }
 
     /// Tidy once shortly after launch, then every hour.
     private static let firstTidyDelay: TimeInterval = 10
@@ -23,28 +53,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let stackSymbol = "square.stack.3d.up.fill"
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Looking for Claude Code can take a moment; do it now, off the main thread, so the stack never waits on it.
-        Task.detached(priority: .utility) { _ = ClaudeCode.isInstalled }
-        MainMenu.install()
-        panel = StackPanelController(store: store)
-        watcher = ScreenshotWatcher(store: store)
-        setUpStatusItem()
-        observeDockBadge()
-        observeRecordingIcon()
-        turnOffNativeThumbnailUnlessKept()
-        Library.adoptIfOnDesktop()
-        restoreAndPersistStack()
-        watcher.start()
-        scheduleTidying()
-        // Start the library a little after launch, so the words in your shots are ready to search when you look.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 20) { LibraryIndex.shared.start() }
-        Task { await ScreenGrabber.warmUp() }
-        observeSettings()
-        CaptureController.shared.excludedWindowNumbers = { [weak self] in
-            [self?.panel.windowNumberToExclude].compactMap { $0 }
+        for step in LaunchStep.plan(dev: dev) {
+            run(step)
+            ranSteps.append(step)
         }
-        applyShortcuts()
-        showWelcomeOnce()
+        if dev { DevCopy.startIfAsked(store: store, panel: panel) }
+    }
+
+    private func run(_ step: LaunchStep) {
+        switch step {
+        case .findClaude:
+            // Looking for Claude Code can take a moment; do it now, off the main thread, so the stack never waits on it.
+            Task.detached(priority: .utility) { _ = ClaudeCode.isInstalled }
+        case .mainMenu: MainMenu.install()
+        case .stackPanel:
+            panel = dev ? StackPanelController(store: store, senses: DevCopy.driver.senses(), hidden: true)
+                : StackPanelController(store: store)
+        case .statusItem: setUpStatusItem()
+        case .dockBadge: observeDockBadge()
+        case .recordingIcon: observeRecordingIcon()
+        case .nativeThumbnail: turnOffNativeThumbnailUnlessKept()
+        case .adoptDesktopShots: Library.adoptIfOnDesktop()
+        case .restoreStack: restoreAndPersistStack()
+        case .watchScreenshots:
+            watcher = ScreenshotWatcher(store: store)
+            watcher?.start()
+        case .tidying: scheduleTidying()
+        case .libraryIndex:
+            // Start the library a little after launch, so the words in your shots are ready to search when you look.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 20) { LibraryIndex.shared.start() }
+        case .warmUpGrabber: Task { await ScreenGrabber.warmUp() }
+        case .observeSettings: observeSettings()
+        case .excludeStackFromCaptures:
+            CaptureController.shared.excludedWindowNumbers = { [weak self] in
+                [self?.panel.windowNumberToExclude].compactMap { $0 }
+            }
+        case .shortcuts: applyShortcuts()
+        case .welcome: showWelcomeOnce()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -77,12 +123,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: Launch steps
 
     private func setUpStatusItem() {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        statusItem.button?.image = NSImage(systemSymbolName: Self.stackSymbol, accessibilityDescription: "Stackling")
-        statusMenu = StatusMenu(store: store)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        item.button?.image = NSImage(systemSymbolName: Self.stackSymbol, accessibilityDescription: "Stackling")
+        let statusMenu = StatusMenu(store: store)
         let menu = NSMenu()
         menu.delegate = statusMenu
-        statusItem.menu = menu
+        item.menu = menu
+        self.statusMenu = statusMenu
+        statusItem = item
     }
 
     private func observeDockBadge() {
@@ -101,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showRecordingIcon(_ recording: Bool) {
-        guard let button = statusItem.button else { return }
+        guard let button = statusItem?.button else { return }
         if recording {
             let config = NSImage.SymbolConfiguration(paletteColors: [.white, .systemRed])
             button.image = NSImage(systemSymbolName: "stop.circle.fill", accessibilityDescription: "Stop recording")?
@@ -153,7 +201,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in
                 self?.applyShortcuts()
                 self?.panel.noteActivity()
-                self?.watcher.checkLocation()
+                self?.watcher?.checkLocation()
             }
             .store(in: &bag)
     }
@@ -167,12 +215,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Hands ⇧⌘4 back to macOS while Stackling isn't running (quit, log out, restart), so it never goes dead.
     /// Launch takes it over again.
     func applicationWillTerminate(_ notification: Notification) {
-        if AppSettings.takeOverArea, !NativeShortcuts.areaShortcutEnabled {
-            NativeShortcuts.setAreaShortcut(enabled: true)
+        for step in QuitStep.plan(dev: dev) {
+            switch step {
+            case .handBackAreaShortcut:
+                if AppSettings.takeOverArea, !NativeShortcuts.areaShortcutEnabled {
+                    NativeShortcuts.setAreaShortcut(enabled: true)
+                }
+            case .log:
+                Log.app.notice("quit")
+                ActivityLog.record(.quit)
+                ActivityLog.flush()
+            }
         }
-        Log.app.notice("quit")
-        ActivityLog.record(.quit)
-        ActivityLog.flush()
     }
 
     // MARK: Shortcuts

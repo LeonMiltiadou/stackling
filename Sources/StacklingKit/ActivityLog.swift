@@ -41,14 +41,20 @@ enum ActivityLog {
         case folderRename = "library.folder-rename", folderTrash = "library.folder-trash"
         // Helpers
         case tidyOpen = "tidy.open", tidyApply = "tidy.apply", autoFile = "autofile", cleanup = "cleanup"
+        // What the stack did by itself, recorded only for Stackling Dev's checks
+        case shrink = "stack.shrink", tuck = "stack.tuck", frame = "stack.frame", panelClick = "panel.click"
+
+        /// Not a feature you use: left out of the catalogue and only recorded while `diagnostics` is on.
+        var isDiagnostic: Bool { [.shrink, .tuck, .frame, .panelClick].contains(self) }
     }
+
+    /// Stackling Dev turns this on to see the stack's own moves next to what it pressed.
+    nonisolated(unsafe) static var diagnostics = false
 
     /// Where it's kept. Plain text, one event per line, readable with any editor.
     static var fileURL: URL {
         if let testURL { return testURL }
-        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(AppPaths.bundleID, isDirectory: true)
-            .appendingPathComponent("activity.jsonl")
+        return AppIdentity.current.support.appendingPathComponent("activity.jsonl")
     }
 
     /// Tests point the log somewhere temporary and switch it on without touching settings.
@@ -57,7 +63,7 @@ enum ActivityLog {
     /// Past this size the log starts afresh (the old one is kept as activity.old.jsonl).
     static let maxBytes = 20 * 1024 * 1024
 
-    private static let queue = DispatchQueue(label: "io.github.leonmiltiadou.stackling.activity", qos: .utility)
+    private static let queue = DispatchQueue(label: AppIdentity.current.queueLabel("activity"), qos: .utility)
 
     /// How the action being recorded was started: "key", "menu", "drag"… Set around a call with `via`.
     nonisolated(unsafe) private static var trigger: String?
@@ -72,6 +78,7 @@ enum ActivityLog {
     }
 
     static func record(_ event: Event, _ details: [String: Any] = [:]) {
+        guard !event.isDiagnostic || diagnostics else { return }
         guard testURL != nil || UserDefaults.standard.bool(forKey: DefaultsKey.activityLog) else { return }
         var line = details
         line["t"] = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime])
@@ -84,7 +91,7 @@ enum ActivityLog {
 
     /// The launch line carries the catalogue of events, so a summary can tell "never used" from "not logged".
     static func recordLaunch(version: String) {
-        record(.launch, ["version": version, "catalogue": Event.allCases.map(\.rawValue)])
+        record(.launch, ["version": version, "catalogue": Event.allCases.filter { !$0.isDiagnostic }.map(\.rawValue)])
     }
 
     /// Waits for pending lines to be written, for quitting.

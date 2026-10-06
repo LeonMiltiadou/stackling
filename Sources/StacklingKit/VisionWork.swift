@@ -8,7 +8,7 @@ import Vision
 /// pictures, say) can occupy every thread and stall everything else. That froze the test run on 3-core CI
 /// machines. A dispatch queue adds threads as needed, so blocking there is safe.
 enum VisionWork {
-    private static let queue = DispatchQueue(label: "io.github.leonmiltiadou.stackling.vision", qos: .utility, attributes: .concurrent)
+    private static let queue = DispatchQueue(label: AppIdentity.current.queueLabel("vision"), qos: .utility, attributes: .concurrent)
 
     /// Vision's types aren't marked Sendable, but each request is used by exactly one caller at a time.
     private struct Handoff<T>: @unchecked Sendable { let value: T }

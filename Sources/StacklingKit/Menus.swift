@@ -245,6 +245,7 @@ enum WelcomeAlert {
     /// Shown on first launch, and from How It Works… in the menu bar. Short on purpose: what the keys are,
     /// and what Stackling changed on this Mac. Everything else is in the README.
     static func show(firstLaunch: Bool = false) {
+        guard Outside.allows("welcome") else { return }
         Log.app.info("welcome.shown first=\(firstLaunch)")
         NSApp.activate()
         let needsPermission = !CGPreflightScreenCaptureAccess()

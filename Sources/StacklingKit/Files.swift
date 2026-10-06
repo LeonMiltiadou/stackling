@@ -77,9 +77,46 @@ enum CaptureFile {
     private static let tagValue = (try? PropertyListSerialization.data(fromPropertyList: true, format: .binary, options: 0)) ?? Data()
 }
 
+/// Who this copy of Stackling is: the real app, or Stackling Dev, a hidden copy that tests itself.
+/// Every name Stackling leaves on the Mac comes from here, so Dev never shares settings, logs, the
+/// Keychain item, the usage notes on your files, the clipboard or the save folder with the real app.
+struct AppIdentity: Sendable {
+    static let realBundleID = "io.github.leonmiltiadou.stackling"
+    static let devBundleID = realBundleID + ".dev"
+
+    /// Read once, from the running bundle. Anything but the Dev bundle (a bare build, the tests) is the real app.
+    static let current = AppIdentity(bundleID: Bundle.main.bundleIdentifier)
+
+    let bundleID: String
+    var isDev: Bool { bundleID == Self.devBundleID }
+
+    init(bundleID: String?) {
+        self.bundleID = bundleID == Self.devBundleID ? Self.devBundleID : Self.realBundleID
+    }
+
+    var logSubsystem: String { bundleID }
+    var keychainService: String { bundleID + ".typesafe" }
+    /// The extended attribute with each file's `UsageNote`. Dev's own, so it can't change what Cleanup clears.
+    var usageAttribute: String { bundleID + ".usage" }
+    func queueLabel(_ name: String) -> String { "\(bundleID).\(name)" }
+    /// Dev copies and pastes on a private pasteboard; the real app uses the clipboard.
+    var pasteboardName: String? { isDev ? bundleID + ".pasteboard" : nil }
+
+    /// ~/Library/Application Support/<bundle id>: settings files, the activity log and, for Dev, its library.
+    var support: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent(bundleID, isDirectory: true)
+    }
+
+    /// Where captures are saved and filed. Dev keeps its own inside its support folder, never ~/Pictures.
+    var libraryRoot: URL {
+        isDev ? support.appendingPathComponent("Library", isDirectory: true)
+            : FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/Stackling", isDirectory: true)
+    }
+}
+
 /// Stackling's own working folders under ~/Library/Caches.
 enum AppPaths {
-    static let bundleID = "io.github.leonmiltiadou.stackling"
+    static var bundleID: String { AppIdentity.current.bundleID }
 
     static var cache: URL {
         FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent(bundleID, isDirectory: true)

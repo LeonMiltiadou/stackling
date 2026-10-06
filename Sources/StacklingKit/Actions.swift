@@ -38,8 +38,8 @@ enum Actions {
             ordered.first?.flashFailed("Couldn't prepare images")
             return
         }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects(exported.map { $0 as NSURL })
+        Clipboard.board.clearContents()
+        Clipboard.board.writeObjects(exported.map { $0 as NSURL })
         ordered.forEach { Usage.used($0.url, how: "copy-all") }
         Log.actions.info("copy-all count=\(ordered.count)")
         ActivityLog.record(.copyAll, ["count": ordered.count])
@@ -146,7 +146,7 @@ enum Actions {
             shot.flashDone("Saved into image")
         } catch {
             Log.actions.error("flatten.failed file=\(shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
         }
     }
 
@@ -219,6 +219,7 @@ enum Actions {
     static func openInPreview(_ shot: Shot) {
         note(.openInApp, shot, ["app": "preview"])
         if shot.isVideo {
+            guard Outside.allows("default-app") else { return }
             NSWorkspace.shared.open(shot.url)
             return
         }
@@ -227,6 +228,7 @@ enum Actions {
 
     static func reveal(_ shot: Shot) {
         note(.reveal, shot)
+        guard Outside.allows("finder") else { return }
         NSWorkspace.shared.activateFileViewerSelecting([shot.url])
     }
 
@@ -241,6 +243,7 @@ enum Actions {
 
     static func moveTo(_ shot: Shot) {
         note(.moveTo, shot)
+        guard Outside.allows("save-panel") else { return }
         NSApp.activate()
         let panel = NSSavePanel()
         panel.nameFieldStringValue = shot.url.lastPathComponent
@@ -260,7 +263,7 @@ enum Actions {
             store.dismiss(shot)
         } catch {
             Log.actions.error("move-to.failed file=\(shot.url.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
         }
     }
 
@@ -271,7 +274,7 @@ enum Actions {
     static func share(_ shot: Shot, with service: NSSharingService) {
         Log.actions.info("share file=\(shot.url.lastPathComponent, privacy: .public) service=\(service.title, privacy: .public)")
         ActivityLog.record(.share, activityDetails(for: shot).merging(["service": service.title]) { a, _ in a })
-        guard let url = shot.exportURL() else { return }
+        guard let url = shot.exportURL(), Outside.allows("share-sheet") else { return }
         NSApp.activate()
         service.perform(withItems: [url])
         Usage.used(shot.url, how: "share")
@@ -281,6 +284,7 @@ enum Actions {
     // MARK: Helpers
 
     private static func open(_ url: URL, with appPath: String) {
+        guard Outside.allows(URL(fileURLWithPath: appPath).deletingPathExtension().lastPathComponent) else { return }
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
         NSWorkspace.shared.open([url], withApplicationAt: URL(fileURLWithPath: appPath), configuration: config)
