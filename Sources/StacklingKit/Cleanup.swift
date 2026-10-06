@@ -15,7 +15,7 @@ struct UsageNote: Codable, Equatable {
 }
 
 enum Usage {
-    static let attribute = "io.github.leonmiltiadou.stackling.usage"
+    static let attribute = AppIdentity.current.usageAttribute
 
     static func read(_ url: URL) -> UsageNote {
         let size = getxattr(url.path, attribute, nil, 0, 0, 0)

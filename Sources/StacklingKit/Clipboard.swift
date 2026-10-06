@@ -4,14 +4,23 @@ import UniformTypeIdentifiers
 /// Everything Stackling puts on the clipboard goes through here.
 @MainActor
 enum Clipboard {
+    /// The clipboard, or for Stackling Dev a private pasteboard, so testing never replaces what you copied.
+    static let board: NSPasteboard = AppIdentity.current.pasteboardName.map { NSPasteboard(name: .init($0)) } ?? .general
+
     static func write(string: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(string, forType: .string)
+        board.clearContents()
+        board.setString(string, forType: .string)
+    }
+
+    /// Several files at once, for pasting into a chat or a pull request.
+    static func write(files: [URL]) {
+        board.clearContents()
+        board.writeObjects(files.map { $0 as NSURL })
     }
 
     static func write(image: NSImage) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([image])
+        board.clearContents()
+        board.writeObjects([image])
     }
 
     /// A shot as picture data (with edits) for apps that paste images, plus the file for apps that take files.
@@ -44,7 +53,7 @@ enum Clipboard {
     }
 
     private static func write(_ item: NSPasteboardItem) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([item])
+        board.clearContents()
+        board.writeObjects([item])
     }
 }

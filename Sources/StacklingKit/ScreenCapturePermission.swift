@@ -10,6 +10,7 @@ enum ScreenCapturePermission {
     /// Puts Stackling in the Screen Recording list and opens that page of System Settings.
     static func openSettings() {
         // Asking is what puts Stackling in the list; without it there'd be nothing to switch on.
+        guard Outside.allows("system-settings") else { return }
         CGRequestScreenCaptureAccess()
         NSWorkspace.shared.open(settingsURL)
     }
@@ -34,6 +35,7 @@ enum ScreenCapturePermission {
             return false
         }
         Log.app.notice("permission.screen-recording.missing")
+        guard Outside.allows("screen-recording-alert") else { return false }
         NSApp.activate()
         let alert = NSAlert()
         alert.messageText = "Stackling needs Screen Recording permission"

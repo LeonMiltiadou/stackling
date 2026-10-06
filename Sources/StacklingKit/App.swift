@@ -6,6 +6,12 @@ import ServiceManagement
 public enum StacklingApp {
     @MainActor
     public static func run() {
+        if AppIdentity.current.isDev { return DevCopy.run() }
+        // A Dev check that somehow started as the real app must not go on to act like it.
+        if CommandLine.arguments.contains("--dev-check") {
+            print("--dev-check needs the Stackling Dev bundle (scripts/dev.sh check)")
+            exit(2)
+        }
         if CommandLine.arguments.contains("--uninstall") {
             Uninstall.run()
             exit(0)

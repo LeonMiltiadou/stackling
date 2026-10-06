@@ -3,14 +3,17 @@
 // its opacity, and which desktops (Spaces) it belongs to. The first thing to run when
 // "the stack isn't showing".
 //
-//   swift scripts/windows.swift
+//   swift scripts/windows.swift          the real app
+//   swift scripts/windows.swift --dev    Stackling Dev (scripts/dev.sh), whose windows are never on screen
 //
 // Layers: 3 is the stack and floating panels, 25 the recording bar, 1000 the capture overlay.
 // A stack that is ordered in but missing from the active desktop's list is stranded on another desktop.
 import AppKit
 
-guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "io.github.leonmiltiadou.stackling" }) else {
-    print("Stackling isn't running")
+let dev = CommandLine.arguments.contains("--dev")
+let bundleID = "io.github.leonmiltiadou.stackling" + (dev ? ".dev" : "")
+guard let app = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == bundleID }) else {
+    print(dev ? "Stackling Dev isn't running" : "Stackling isn't running")
     exit(1)
 }
 

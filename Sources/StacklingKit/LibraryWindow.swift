@@ -10,6 +10,7 @@ final class LibraryWindowController: NSWindowController, NSWindowDelegate {
     static let size = NSSize(width: 1040, height: 700)
 
     static func show() {
+        guard Outside.allows("library-window") else { return }
         let controller = shared ?? LibraryWindowController()
         shared = controller
         LibraryIndex.shared.start()
@@ -411,8 +412,7 @@ enum LibraryActions {
             guard Clipboard.write(shot: Shot(url: item.url, created: item.created)) else { return false }
         } else {
             guard let exported = Export.urls(for: items.map(\.url)) else { return false }
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.writeObjects(exported.map { $0 as NSURL })
+            Clipboard.write(files: exported)
         }
         items.forEach { Usage.used($0.url, how: "library-copy") }
         Log.actions.info("library.copy count=\(items.count)")
@@ -470,7 +470,7 @@ enum LibraryActions {
                 moves[url.standardizedFileURL] = try Library.move(url, into: folder)
             }
         } catch {
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
         }
         ShotStore.shared.relocate(moves)
         LibraryIndex.shared.scheduleRescan()
@@ -496,7 +496,7 @@ enum LibraryActions {
             Log.library.info("library.rename")
             ActivityLog.record(.libraryRename)
         } catch {
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
         }
     }
 }

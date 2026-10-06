@@ -24,6 +24,42 @@ struct StackView: View {
         .dropDestination(for: URL.self) { urls, _ in
             Importer.add(urls, from: "stack-drop") > 0
         }
+        .onPreferenceChange(StackTargetFrames.self) { frames in
+            MainActor.assumeIsolated { store.targetFrames = frames }
+        }
+    }
+}
+
+/// The stack's own buttons, by name, so Stackling Dev and the tests can aim at them.
+enum StackTarget: String, CaseIterable {
+    /// "3 more" on a collapsed stack.
+    case more
+    /// The little box a stack shrinks to.
+    case shrunk
+
+    /// What pressing it does. The button itself calls this, so pressing it from a test is the same call.
+    @MainActor
+    func press(_ store: ShotStore) {
+        switch self {
+        case .more: store.toggleExpanded()
+        case .shrunk: store.setMinimized(false, reason: "click")
+        }
+    }
+}
+
+/// Where each `StackTarget` is laid out, in the host's own coordinates (top-left origin).
+private struct StackTargetFrames: PreferenceKey {
+    static let defaultValue: [StackTarget: CGRect] = [:]
+    static func reduce(value: inout [StackTarget: CGRect], nextValue: () -> [StackTarget: CGRect]) {
+        value.merge(nextValue()) { $1 }
+    }
+}
+
+private extension View {
+    func stackTarget(_ target: StackTarget) -> some View {
+        background(GeometryReader { geometry in
+            Color.clear.preference(key: StackTargetFrames.self, value: [target: geometry.frame(in: .global)])
+        })
     }
 }
 
@@ -69,7 +105,7 @@ private struct MorePill: View {
     var body: some View {
         HStack(spacing: 6) {
             Button {
-                store.toggleExpanded()
+                StackTarget.more.press(store)
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "square.stack.3d.up.fill")
@@ -81,6 +117,7 @@ private struct MorePill: View {
                 .contentShape(Capsule())
             }
             .buttonStyle(PillButtonStyle())
+            .stackTarget(.more)
             .help("Show the whole stack")
 
             Button {
@@ -135,7 +172,7 @@ private struct MiniStack: View {
 
     var body: some View {
         Button {
-            store.setMinimized(false, reason: "click")
+            StackTarget.shrunk.press(store)
         } label: {
             ZStack {
                 Rectangle().fill(.regularMaterial)
@@ -173,6 +210,7 @@ private struct MiniStack: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .stackTarget(.shrunk)
         .scaleEffect(hover ? 1.06 : 1, anchor: .bottomLeading)
         .shadow(color: .black.opacity(0.3), radius: hover ? 10 : 6, y: 3)
         .animation(.easeOut(duration: 0.12), value: hover)

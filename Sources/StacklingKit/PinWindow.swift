@@ -37,6 +37,7 @@ final class PinWindow: NSPanel {
     private let naturalSize: NSSize
 
     static func show(_ image: NSImage, shot: Shot?) {
+        guard Outside.allows("pin") else { return }
         let pin = PinWindow(image: image, shot: shot)
         pins.append(pin)
         // Shown, not focused: you pin a reference to look at while you keep typing. Click it for Esc and ⌘C.

@@ -35,17 +35,34 @@ private extension NSPoint {
     func offsetBy(_ d: CGFloat) -> NSPoint { NSPoint(x: x + d, y: y + d) }
 }
 
+/// What the stack reads from the world: the time, where the pointer is, and how long to wait before
+/// shrinking. Live in the app; tests and Stackling Dev script them.
+struct StackSenses {
+    var now: () -> Date
+    var pointer: () -> NSPoint
+    var shrinkDelay: () -> TimeInterval
+    /// Whether the stack polls on its own timer. Off when a script ticks it by hand.
+    var polls: Bool
+
+    static let live = StackSenses(now: Date.init, pointer: { NSEvent.mouseLocation }, shrinkDelay: { AppSettings.shrinkDelay }, polls: true)
+}
+
 /// Keeps the panel in the bottom-left corner (or wherever you dragged it) and sized to its content.
 @MainActor
 final class StackPanelController {
     private var panel = StackPanel()
     private let store: ShotStore
+    private let senses: StackSenses
+    /// Stackling Dev's stack: built and laid out like the real one, but never ordered in, because window
+    /// managers pull any ordered-in window onto the desktop you're using. `showing` stands in for on screen.
+    private let hidden: Bool
+    private var showing = false
     private var bag = Set<AnyCancellable>()
     private var screen: NSScreen?
     private var pendingResize: DispatchWorkItem?
 
     // Shrinking: after a quiet spell the stack becomes a little box you click to open again.
-    private var lastActivity = Date()
+    private var lastActivity: Date
     private var pollTimer: Timer?
     /// Where the pointer was at the last poll, to tell when it's heading for the stack.
     private var lastPointer: NSPoint?
@@ -56,7 +73,7 @@ final class StackPanelController {
     private var peekUntil = Date.distantPast
     private var previousShotCount = 0
 
-    private static let pollInterval: TimeInterval = 0.15
+    static let pollInterval: TimeInterval = 0.15
     /// Long enough for the cards' exit animation to finish before the panel shrinks or hides.
     private static let exitAnimationDelay: TimeInterval = 0.45
     /// How long a new shot shows over an editor before the stack tucks away again.
@@ -69,8 +86,11 @@ final class StackPanelController {
     /// resting on the mouse doesn't keep the stack open.
     private static let approachStep: CGFloat = 4
 
-    init(store: ShotStore) {
+    init(store: ShotStore, senses: StackSenses = .live, hidden: Bool = false) {
         self.store = store
+        self.senses = senses
+        self.hidden = hidden
+        lastActivity = senses.now()
         panel.contentView = Self.makeHost(for: store)
 
         Publishers.CombineLatest4(store.$shots, store.$expanded, store.$customOrigin, store.$minimized)
@@ -106,7 +126,7 @@ final class StackPanelController {
     /// the mouse. It only runs while the stack is on screen, so an empty stack costs nothing. Scheduled in
     /// the default run loop mode, so it pauses while a menu is open or a card is being dragged.
     private func setPolling(_ on: Bool) {
-        guard on != (pollTimer != nil) else { return }
+        guard senses.polls, on != (pollTimer != nil) else { return }
         if on {
             lastPointer = nil
             pollTimer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
@@ -121,6 +141,11 @@ final class StackPanelController {
     }
 
     var windowNumber: Int { panel.windowNumber }
+    var frame: CGRect { panel.frame }
+    /// Ordered in. Never true for Stackling Dev's hidden stack.
+    var isOnScreen: Bool { panel.isVisible }
+    /// On screen, or for the hidden stack, laid out as if it were.
+    private var isShowing: Bool { hidden ? showing : panel.isVisible }
 
     /// The stack's window, if screenshots would otherwise include it. Normally it hides itself from every
     /// capture, so there's nothing to leave out (and ⇧⌘4 can skip looking up what's on screen).
@@ -128,13 +153,14 @@ final class StackPanelController {
 
     /// Something happened (new shot, action, settings change): restart the idle clock.
     func noteActivity() {
-        lastActivity = Date()
+        lastActivity = senses.now()
     }
 
     // MARK: Tucking and shrinking
 
-    private func tick() {
-        guard panel.isVisible else { return }
+    /// One poll. The timer calls it; a script with its own clock calls it by hand.
+    func tick() {
+        guard isShowing else { return }
         if updateTucked() { return }
         // While tucked behind an editor the idle clock stands still, so the stack comes back full-size,
         // ready to drag the shot you just edited.
@@ -145,10 +171,11 @@ final class StackPanelController {
     /// Tucks the stack away while an editor or preview is in front, and brings it back after.
     /// Returns true if that changed, so this tick doesn't also shrink it.
     private func updateTucked() -> Bool {
-        let tuck = Self.editorInFront && Date() > peekUntil
+        let tuck = Self.editorInFront && senses.now() > peekUntil
         guard tuck != tucked else { return false }
         tucked = tuck
         Log.stack.info("\(tuck ? "tucked" : "untucked", privacy: .public)")
+        ActivityLog.record(.tuck, ["on": tuck])
         if !tuck { noteActivity() }
         animateTucked(duration: tuck ? Self.tuckDuration : Self.untuckDuration)
         if !tuck { NotificationCenter.default.post(name: DragSurfaceView.recheckHover, object: nil) }
@@ -156,12 +183,14 @@ final class StackPanelController {
     }
 
     private func shrinkIfIdle() {
-        let pointer = NSEvent.mouseLocation
+        let pointer = senses.pointer()
         let keepOpen = Self.pointerKeepsOpen(pointer, previous: lastPointer, stack: panel.frame)
         lastPointer = pointer
         if keepOpen { noteActivity() }
-        let delay = AppSettings.shrinkDelay
-        if delay > 0, !keepOpen, !store.minimized, Date().timeIntervalSince(lastActivity) > delay {
+        let delay = senses.shrinkDelay()
+        let idle = senses.now().timeIntervalSince(lastActivity)
+        if delay > 0, !keepOpen, !store.minimized, idle > delay {
+            ActivityLog.record(.shrink, ["idle-ms": Int(idle * 1000)])
             store.setMinimized(true, reason: "idle")
         }
     }
@@ -199,6 +228,9 @@ final class StackPanelController {
 
     // MARK: Layout
 
+    /// Lays out from what's in the store now, rather than on the next turn of the run loop.
+    func layoutNow() { relayout() }
+
     /// Lays out again from what's in the store, e.g. after the screens change.
     private func relayout() {
         layout(count: store.shots.count, expanded: store.expanded, origin: store.customOrigin, minimized: store.minimized)
@@ -217,15 +249,21 @@ final class StackPanelController {
 
         let target = Self.targetFrame(count: count, expanded: expanded, minimized: minimized, origin: origin, visible: visible)
         Log.stack.debug("layout count=\(count) expanded=\(expanded) minimized=\(minimized) screen=\(screen.displayID ?? 0) frame=\(NSStringFromRect(target), privacy: .public)")
+        ActivityLog.record(.frame, ["count": count, "expanded": expanded, "minimized": minimized,
+                                    "w": Int(target.width), "h": Int(target.height)])
         applyFrame(target)
-        panel.orderFrontRegardless()
+        if hidden {
+            showing = true
+        } else {
+            panel.orderFrontRegardless()
+        }
         setPolling(true)
         rescueIfStranded()
     }
 
     /// A new shot arrived: let it show over an editor for a moment before tucking away again.
     private func notePeekIfGrew(_ count: Int) {
-        if count > previousShotCount { peekUntil = Date().addingTimeInterval(Self.peekDuration) }
+        if count > previousShotCount { peekUntil = senses.now().addingTimeInterval(Self.peekDuration) }
         previousShotCount = count
     }
 
@@ -234,6 +272,7 @@ final class StackPanelController {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.panel.orderOut(nil)
+            self.showing = false
             self.setPolling(false)
             self.screen = nil
             if self.store.customOrigin != nil { self.store.customOrigin = nil }
@@ -248,7 +287,7 @@ final class StackPanelController {
     private func resolveScreen(for origin: NSPoint?) -> NSScreen {
         if let origin, let moved = NSScreen.containing(origin.offsetBy(Layout.pad)) {
             screen = moved
-        } else if !panel.isVisible || screen == nil {
+        } else if !isShowing || screen == nil {
             screen = NSScreen.underMouse
         }
         return screen ?? NSScreen.underMouse
@@ -267,10 +306,10 @@ final class StackPanelController {
     }
 
     private func applyFrame(_ target: CGRect) {
-        if panel.isVisible, target.size == panel.frame.size, target.origin != panel.frame.origin {
+        if isShowing, target.size == panel.frame.size, target.origin != panel.frame.origin {
             // Only the position changed, e.g. going back to the corner: glide there.
-            panel.setFrame(target, display: true, animate: true)
-        } else if !panel.isVisible || target.height >= panel.frame.height {
+            panel.setFrame(target, display: true, animate: !hidden)
+        } else if !isShowing || target.height >= panel.frame.height {
             // Grow right away so nothing gets clipped mid-animation.
             panel.setFrame(target, display: true)
         } else {
@@ -284,7 +323,7 @@ final class StackPanelController {
     /// macOS sometimes pins the panel to a single desktop even though it's set to join all of them,
     /// and from then on it only shows up there. When that happens, swap in a fresh panel.
     private func rescueIfStranded() {
-        guard panel.isVisible, !panel.isOnActiveSpace else { return }
+        guard !hidden, panel.isVisible, !panel.isOnActiveSpace else { return }
         Log.stack.notice("stranded.rescued")
         let old = panel
         let fresh = StackPanel()
@@ -297,5 +336,71 @@ final class StackPanelController {
         fresh.ignoresMouseEvents = old.ignoresMouseEvents
         panel = fresh
         panel.orderFrontRegardless()
+    }
+
+    /// A picture of the live stack, drawn in memory: Stackling Dev's stack is never on screen to capture.
+    func snapshot() -> Data? {
+        guard let host = panel.contentView, let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return nil }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        return rep.representation(using: .png, properties: [:])
+    }
+
+    // MARK: Aiming
+
+    /// What a click at a point would land on.
+    struct Aim {
+        /// The view AppKit's hit-testing finds there.
+        var hit: NSView?
+        /// The stack button there, when nothing AppKit sits on top of it.
+        var target: StackTarget?
+        /// The hit view's type, for logs and reports: "StackHostingView", "DragSurfaceView" or "none".
+        var hitName: String { hit.map { String(describing: type(of: $0)) } ?? "none" }
+    }
+
+    /// What's under `point`, in the host's own coordinates (top-left origin): the view AppKit's hit-testing
+    /// finds, and the stack button laid out there when that view is the SwiftUI host itself, so no card
+    /// or other AppKit view sits on top of it.
+    static func aim(at point: NSPoint, in host: NSView, store: ShotStore) -> Aim {
+        settle(host)
+        // hitTest takes the superview's coordinates. A host on its own (a test) has none, so place the point
+        // in its frame by hand: the host is flipped, its frame isn't.
+        let frame = host.frame
+        let inSuperview = host.superview.map { host.convert(point, to: $0) }
+            ?? NSPoint(x: frame.minX + point.x, y: host.isFlipped ? frame.maxY - point.y : frame.minY + point.y)
+        let hit = host.hitTest(inSuperview)
+        guard let hit, hit === host else { return Aim(hit: hit) }
+        return Aim(hit: hit, target: StackTarget.allCases.first { store.targetFrames[$0]?.contains(point) == true })
+    }
+
+    /// Brings the SwiftUI content up to date with the store before aiming. A window on screen does this
+    /// on every frame; a hidden one, or a script that doesn't let the run loop wait, may not have yet.
+    private static func settle(_ host: NSView) {
+        host.needsLayout = true
+        host.layoutSubtreeIfNeeded()
+    }
+
+    /// Where a stack button is on screen, if the stack is showing it.
+    func screenPoint(of target: StackTarget) -> NSPoint? {
+        guard isShowing, let host = panel.contentView else { return nil }
+        Self.settle(host)
+        guard let frame = store.targetFrames[target] else { return nil }
+        return panel.convertPoint(toScreen: host.convert(NSPoint(x: frame.midX, y: frame.midY), to: nil))
+    }
+
+    /// Stackling Dev's click at a point on screen. Not a real mouse event: macOS delivers none to a window
+    /// that was never shown, and SwiftUI ignores one handed to its view. So it hit-tests the live panel the
+    /// way a click would (AppKit down to the SwiftUI host, then where the buttons are laid out) and, when a
+    /// stack button is there, presses it with the same call the button makes. Cards are never pressed.
+    @discardableResult
+    func click(atScreen point: NSPoint) -> Aim {
+        var aimed = Aim()
+        if isShowing, !panel.ignoresMouseEvents, panel.frame.contains(point), let host = panel.contentView {
+            aimed = Self.aim(at: host.convert(panel.convertPoint(fromScreen: point), from: nil), in: host, store: store)
+        }
+        let target = aimed.target?.rawValue ?? "none"
+        Log.stack.info("panel.click hit=\(aimed.hitName, privacy: .public) target=\(target, privacy: .public)")
+        ActivityLog.record(.panelClick, ["hit": aimed.hitName, "target": target])
+        aimed.target?.press(store)
+        return aimed
     }
 }

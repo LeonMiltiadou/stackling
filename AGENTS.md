@@ -10,6 +10,7 @@ before changing behaviour.
 swift build -c release          # compile check
 swift test                      # Swift Testing suite, must stay green
 scripts/build.sh install        # build, copy to /Applications, relaunch (restarts the user's app)
+scripts/dev.sh check            # hidden Stackling Dev reaches for "3 more" and checks the stack opened
 scripts/logs.sh 10m [category]  # what the app did; `live` streams
 swift scripts/windows.swift     # every Stackling window: frame, on screen, alpha, desktops
 ```
@@ -81,9 +82,28 @@ Whoever you're working with is probably using this Mac at the same time. Check v
 `NSHostingView`, set its frame, `layoutSubtreeIfNeeded()`, then `bitmapImageRepForCachingDisplay` +
 `cacheDisplay` to a PNG and read it. To reach internal types, compile a throwaway `main.swift` together
 with `Sources/StacklingKit/*.swift` (`swiftc -module-name StacklingKit … main.swift`) in the scratchpad.
-Never create a window to check something, not even one parked off-screen with activation prohibited:
+Never order a window in to check something, not even one parked off-screen with activation prohibited:
 window managers pull any ordered-in window onto the user's active desktop. Installing the real app is
 the one time windows appear.
+
+A window that's built but never ordered in is fine: yabai doesn't list it and it's never on screen. Tests
+put the stack in one (`StackPanel`, no `orderFront`) because AppKit only hit-tests the cards' views
+inside a window. Two limits: macOS delivers no mouse events to it at all (`sendEvent` drops them), and
+SwiftUI ignores a `mouseDown` handed to its view. So nothing can really click it.
+
+**Stackling Dev** (`DevCopy.swift`, `scripts/dev.sh`) is a hidden copy that checks the stack by using it:
+bundle id `io.github.leonmiltiadou.stackling.dev`, a throwaway home folder, its own library, logs,
+Keychain item, usage attribute and pasteboard (`AppIdentity`). Its launch runs only the hidden stack
+(`LaunchStep.plan(dev:)`): no menu bar or Dock icon, hot keys, card keys, screenshot settings, watcher,
+tidying, Claude or Jev. Every window, app, Finder, share sheet, dialog or capture overlay an action could
+open goes through `Outside` (anything new that opens one must ask it too), which Dev and the tests make
+inert, and Dev refuses to run otherwise. The stack runs on
+`StackSenses` (clock, pointer, shrink delay): Dev scripts the pointer in real time; tests use
+`SteppedDriver`, a clock that moves only when told. Dev's "click" (`StackPanelController.click`) is
+AppKit's hit-test on the live panel plus where the stack buttons are laid out (`StackTarget`), then the
+button's own action: not a real mouse event. Its activity log adds `stack.shrink`, `stack.tuck`,
+`stack.frame` and `panel.click hit=<view>`, and it writes in-memory PNGs of the stack. Never press a card
+from a script: card actions open windows.
 
 ## Gotchas
 

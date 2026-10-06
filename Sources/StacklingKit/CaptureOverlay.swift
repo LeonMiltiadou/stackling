@@ -26,7 +26,7 @@ final class CaptureController {
             Log.capture.debug("start.ignored reason=already-capturing")
             return
         }
-        guard ScreenCapturePermission.ensure() else { return }
+        guard Outside.allows("capture"), ScreenCapturePermission.ensure() else { return }
         isCapturing = true
         self.purpose = purpose
         Log.capture.info("start mode=\(mode.rawValue, privacy: .public) purpose=\(purpose.rawValue, privacy: .public)")
@@ -49,7 +49,7 @@ final class CaptureController {
             Log.capture.debug("start.ignored reason=already-capturing")
             return
         }
-        guard ScreenCapturePermission.ensure() else { return }
+        guard Outside.allows("capture"), ScreenCapturePermission.ensure() else { return }
         isCapturing = true
         let screen = NSScreen.underMouse
         Log.capture.info("start mode=fullscreen screen=\(screen.displayID ?? 0)")

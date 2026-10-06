@@ -140,8 +140,10 @@ enum NativeShortcuts {
 }
 
 /// Opens the Mac's own screenshot toolbar (⇧⌘5), for recording with sound or its other options.
+@MainActor
 enum SystemScreenshotToolbar {
     static func open() {
+        guard Outside.allows("screenshot-toolbar") else { return }
         // -p saves using your normal settings, so the file lands in the screenshot folder and reaches the stack.
         Shell.run("/usr/sbin/screencapture", ["-i", "-U", "-p"], wait: false)
     }
@@ -167,5 +169,28 @@ enum Shell {
             return false
         }
         return true
+    }
+
+    /// What a tool prints, once it has finished. Waits without turning the run loop, unlike `waitUntilExit`:
+    /// on the main thread, turning it lets other work run halfway through, such as a SwiftUI update that
+    /// reads `ClaudeCode.isInstalled` while this is still working it out, and that traps.
+    static func output(_ path: String, _ arguments: [String]) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        let out = Pipe()
+        process.standardOutput = out
+        process.standardError = FileHandle.nullDevice
+        let finished = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in finished.signal() }
+        do {
+            try process.run()
+        } catch {
+            Log.app.error("shell.launch-failed tool=\(path, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        finished.wait()
+        return String(data: data, encoding: .utf8)
     }
 }

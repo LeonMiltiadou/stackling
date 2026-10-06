@@ -41,7 +41,7 @@ final class RecordingSession: NSObject, SCStreamOutput, SCStreamDelegate, @unche
     private var stream: SCStream!
     private let writer: AVAssetWriter
     private let input: AVAssetWriterInput
-    private let queue = DispatchQueue(label: "io.github.leonmiltiadou.stackling.recording")
+    private let queue = DispatchQueue(label: AppIdentity.current.queueLabel("recording"))
     private let url: URL
     private var started = false
     var onStoppedByError: (Error) -> Void = { _ in }

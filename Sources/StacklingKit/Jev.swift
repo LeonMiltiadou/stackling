@@ -69,7 +69,8 @@ enum Jev {
     }
 
     /// Only checks a key is saved; doesn't read it, so it never brings up a Keychain prompt.
-    static var isConfigured: Bool { JevKey.exists() }
+    /// Stackling Dev never uses Jev.
+    static var isConfigured: Bool { !AppIdentity.current.isDev && JevKey.exists() }
 
     /// Asks every question about `state` in one request.
     static func ask(state: Any, questions: [String: Question], session: URLSession = .shared) async throws -> [String: Answer] {
@@ -122,7 +123,7 @@ enum Jev {
 /// Read once per launch and kept in memory: reading it can bring up "Stackling wants to access key…",
 /// and that should happen at most once, not on every capture.
 enum JevKey {
-    private static let service = "io.github.leonmiltiadou.stackling.typesafe"
+    private static let service = AppIdentity.current.keychainService
     private static let account = "api-key"
 
     private enum Cached { case unknown, key(String), none }

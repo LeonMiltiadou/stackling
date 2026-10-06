@@ -12,6 +12,7 @@ final class PreviewWindowController: NSWindowController, NSWindowDelegate {
     private let model: PreviewModel
 
     static func show(_ shot: Shot) {
+        guard Outside.allows("preview-window") else { return }
         if let existing = open[ObjectIdentifier(shot)] {
             NSApp.activate()
             existing.window?.makeKeyAndOrderFront(nil)

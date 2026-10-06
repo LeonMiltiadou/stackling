@@ -8,9 +8,7 @@ import AppKit
 ///         <your folders>/    anything you file somewhere is yours and never touched
 @MainActor
 enum Library {
-    nonisolated static var root: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Pictures/Stackling", isDirectory: true)
-    }
+    nonisolated static var root: URL { AppIdentity.current.libraryRoot }
 
     nonisolated static let archiveName = "Archive"
     static var archive: URL { root.appendingPathComponent(archiveName, isDirectory: true) }
@@ -60,7 +58,7 @@ enum Library {
             return true
         } catch {
             Log.library.error("file.failed file=\(shot.url.lastPathComponent, privacy: .public) folder=\(folder.lastPathComponent, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
             return false
         }
     }
@@ -84,7 +82,7 @@ enum Library {
             ActivityLog.record(.folderNew)
             return folder
         } catch {
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
             return nil
         }
     }
@@ -103,13 +101,14 @@ enum Library {
             ActivityLog.record(.folderRename)
             return dest
         } catch {
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
             return nil
         }
     }
 
     /// Moves a folder and everything in it to the Trash, after asking.
     static func trashFolder(_ folder: URL) -> Bool {
+        guard Outside.allows("trash-folder-prompt") else { return false }
         let count = (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?.filter { !$0.hasPrefix(".") }.count ?? 0
         NSApp.activate()
         let alert = NSAlert()
@@ -125,13 +124,14 @@ enum Library {
             ActivityLog.record(.folderTrash, ["count": count])
             return true
         } catch {
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
             return false
         }
     }
 
     /// A small prompt for a file or folder name. Slashes and colons become dashes; blank means cancel.
     static func askForName(title: String, current: String, button: String, detail: String? = nil) -> String? {
+        guard Outside.allows("name-prompt") else { return nil }
         NSApp.activate()
         let alert = NSAlert()
         alert.messageText = title
@@ -242,6 +242,7 @@ enum Library {
 
     /// Offers to move every screenshot and recording off the Desktop into the library.
     static func offerToClearDesktop(store: ShotStore) {
+        guard Outside.allows("clear-desktop-prompt") else { return }
         let loose = looseCaptures(in: ScreenshotPrefs.desktop)
         NSApp.activate()
         let alert = NSAlert()
@@ -276,6 +277,7 @@ enum Library {
         }
         Log.library.info("clear-desktop count=\(moved.count) failed=\(loose.count - moved.count)")
         store.relocate(moved)
+        guard Outside.allows("finder") else { return }
         NSWorkspace.shared.activateFileViewerSelecting([dest])
     }
 }

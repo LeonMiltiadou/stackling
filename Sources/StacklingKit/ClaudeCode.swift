@@ -38,7 +38,8 @@ enum ClaudeCode {
     static let timeout: Duration = .seconds(300)
 
     /// Whether Claude Code is on this Mac. Looked up once (it can take a moment), so warm it up off the main thread.
-    static let isInstalled: Bool = executable() != nil
+    /// Stackling Dev never uses it.
+    static let isInstalled: Bool = !AppIdentity.current.isDev && executable() != nil
 
     /// Where `claude` usually lives. Apps don't get your shell's PATH, so we look in the usual places,
     /// then ask a login shell as a last resort.
@@ -230,16 +231,7 @@ enum ClaudeCode {
     }
 
     private static func loginShellLookup() -> URL? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lc", "whence -p claude"]
-        let out = Pipe()
-        process.standardOutput = out
-        process.standardError = Pipe()
-        guard (try? process.run()) != nil else { return nil }
-        process.waitUntilExit()
-        let path = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let path = Shell.output("/bin/zsh", ["-lc", "whence -p claude"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return path.isEmpty ? nil : URL(fileURLWithPath: path)
     }
 }
