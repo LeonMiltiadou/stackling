@@ -25,6 +25,12 @@ final class StackPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// The stack's SwiftUI host. The panel never becomes key, so like the cards' drag surfaces it takes the
+/// first click itself: a click on "N more" or the shrunk box acts straight away rather than being used up.
+final class StackHostingView: NSHostingView<StackView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
 private extension NSPoint {
     func offsetBy(_ d: CGFloat) -> NSPoint { NSPoint(x: x + d, y: y + d) }
 }
@@ -41,6 +47,8 @@ final class StackPanelController {
     // Shrinking: after a quiet spell the stack becomes a little box you click to open again.
     private var lastActivity = Date()
     private var pollTimer: Timer?
+    /// Where the pointer was at the last poll, to tell when it's heading for the stack.
+    private var lastPointer: NSPoint?
 
     // Tucking: the stack gets out of the way completely while an editor or preview window is in front,
     // since both want the same bit of screen. A new shot still peeks in briefly so you see it land.
@@ -57,12 +65,13 @@ final class StackPanelController {
     private static let untuckDuration: TimeInterval = 0.3
     /// Hovering counts from a little outside the cards, not from the panel's transparent shadow margin.
     private static let hoverInset: CGFloat = Layout.pad - 6
+    /// How much nearer the stack the pointer must get between polls to count as heading for it, so a hand
+    /// resting on the mouse doesn't keep the stack open.
+    private static let approachStep: CGFloat = 4
 
     init(store: ShotStore) {
         self.store = store
-        let host = NSHostingView(rootView: StackView(store: store))
-        host.sizingOptions = []
-        panel.contentView = host
+        panel.contentView = Self.makeHost(for: store)
 
         Publishers.CombineLatest4(store.$shots, store.$expanded, store.$customOrigin, store.$minimized)
             .receive(on: RunLoop.main)
@@ -86,12 +95,20 @@ final class StackPanelController {
 
     }
 
+    /// The panel's content, apart from the panel so tests can lay it out and click-test it with no window.
+    static func makeHost(for store: ShotStore) -> NSView {
+        let host = StackHostingView(rootView: StackView(store: store))
+        host.sizingOptions = []
+        return host
+    }
+
     /// Polling rather than tracking areas: it keeps working while the panel is tucked away and ignoring
     /// the mouse. It only runs while the stack is on screen, so an empty stack costs nothing. Scheduled in
     /// the default run loop mode, so it pauses while a menu is open or a card is being dragged.
     private func setPolling(_ on: Bool) {
         guard on != (pollTimer != nil) else { return }
         if on {
+            lastPointer = nil
             pollTimer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
                 MainActor.assumeIsolated { self?.tick() }
             }
@@ -139,13 +156,29 @@ final class StackPanelController {
     }
 
     private func shrinkIfIdle() {
-        let content = panel.frame.insetBy(dx: Self.hoverInset, dy: Self.hoverInset)
-        let hovering = NSMouseInRect(NSEvent.mouseLocation, content, false)
-        if hovering { noteActivity() }
+        let pointer = NSEvent.mouseLocation
+        let keepOpen = Self.pointerKeepsOpen(pointer, previous: lastPointer, stack: panel.frame)
+        lastPointer = pointer
+        if keepOpen { noteActivity() }
         let delay = AppSettings.shrinkDelay
-        if delay > 0, !hovering, !store.minimized, Date().timeIntervalSince(lastActivity) > delay {
+        if delay > 0, !keepOpen, !store.minimized, Date().timeIntervalSince(lastActivity) > delay {
             store.setMinimized(true, reason: "idle")
         }
+    }
+
+    /// The pointer is on the stack, or on its way there since the last look. Both count as using it, so the
+    /// stack doesn't shrink away from under you as you reach for "N more" and the click lands on nothing.
+    static func pointerKeepsOpen(_ pointer: NSPoint, previous: NSPoint?, stack: CGRect) -> Bool {
+        let content = stack.insetBy(dx: hoverInset, dy: hoverInset)
+        if NSMouseInRect(pointer, content, false) { return true }
+        guard let previous else { return false }
+        return distance(from: previous, to: content) - distance(from: pointer, to: content) > approachStep
+    }
+
+    private static func distance(from point: NSPoint, to rect: CGRect) -> CGFloat {
+        let dx = max(rect.minX - point.x, 0, point.x - rect.maxX)
+        let dy = max(rect.minY - point.y, 0, point.y - rect.maxY)
+        return hypot(dx, dy)
     }
 
     private func animateTucked(duration: Double) {

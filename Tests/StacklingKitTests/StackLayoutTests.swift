@@ -57,4 +57,41 @@ import Testing
         let frame = StackPanelController.targetFrame(count: 3, expanded: false, minimized: false, origin: nil, visible: small)
         #expect(frame.height == small.height)
     }
+
+    /// The stack shrinks after a quiet spell, but not out from under a pointer reaching for "N more":
+    /// the pill would vanish and the click land on nothing.
+    @MainActor @Test func aPointerOnOrHeadingForTheStackKeepsItOpen() {
+        let stack = StackPanelController.targetFrame(count: 4, expanded: false, minimized: false, origin: nil, visible: visible)
+        let pill = NSPoint(x: stack.minX + Layout.pad + 50, y: stack.maxY - Layout.pad - Layout.pillH / 2)
+        func keeps(_ pointer: NSPoint, from previous: NSPoint?) -> Bool {
+            StackPanelController.pointerKeepsOpen(pointer, previous: previous, stack: stack)
+        }
+        #expect(keeps(pill, from: pill))
+        #expect(keeps(NSPoint(x: 400, y: 560), from: NSPoint(x: 600, y: 700)), "heading for the pill")
+        #expect(keeps(NSPoint(x: 120, y: 410), from: NSPoint(x: 200, y: 480)), "the last stretch")
+        #expect(!keeps(NSPoint(x: 600, y: 700), from: NSPoint(x: 400, y: 560)), "moving away")
+        #expect(!keeps(NSPoint(x: 900, y: 600), from: NSPoint(x: 900, y: 600)), "resting elsewhere")
+        #expect(!keeps(NSPoint(x: 599, y: 699), from: NSPoint(x: 600, y: 700)), "a hand on the mouse")
+        #expect(!keeps(NSPoint(x: 900, y: 600), from: nil), "the first look, far away")
+    }
+
+    /// The panel never becomes key, so the view a click lands on must take the first click itself, or a
+    /// click on "N more" can be used up just bringing the panel forward.
+    @MainActor @Test func theStackTakesTheFirstClick() throws {
+        let folder = try TempFolder()
+        let store = ShotStore()
+        for name in ["a", "b", "c", "d"] { store.add(try folder.file("Screenshot \(name).png")) }
+        func firstClick(at point: (CGSize) -> NSPoint) -> Bool? {
+            let size = StackPanelController.targetFrame(count: 4, expanded: false, minimized: store.minimized, origin: nil, visible: visible).size
+            let host = StackPanelController.makeHost(for: store)
+            host.frame = CGRect(origin: .zero, size: size)
+            host.layoutSubtreeIfNeeded()
+            var p = point(size)
+            if !host.isFlipped { p.y = size.height - p.y }
+            return host.hitTest(p)?.acceptsFirstMouse(for: nil)
+        }
+        #expect(firstClick { _ in NSPoint(x: Layout.pad + 40, y: Layout.pad + Layout.pillH / 2) } == true, "the \"3 more\" pill")
+        store.setMinimized(true, reason: "idle")
+        #expect(firstClick { NSPoint(x: Layout.pad + 40, y: $0.height - Layout.pad - 28) } == true, "the shrunk box")
+    }
 }

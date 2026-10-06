@@ -175,7 +175,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         paste.isEnabled = Importer.clipboardHasSomething
         menu.addItem(paste)
         if count > 1 {
-            menu.addItem(ClosureMenuItem(title: store.expanded ? "Collapse Stack" : "Expand Stack") { [weak self] in self?.store.toggleExpanded() })
+            menu.addItem(ClosureMenuItem(title: store.showsWholeStack ? "Collapse Stack" : "Expand Stack") { [weak self] in self?.store.toggleExpanded() })
         }
         if store.customOrigin != nil {
             menu.addItem(ClosureMenuItem(title: "Put Stack Back in Corner") { [weak self] in self?.store.customOrigin = nil })

@@ -74,8 +74,8 @@ Each new shot slides into the stack. **Hover a card** to see what you can do wit
 | **📌** | Pins it on top of everything, handy for copying from one app into another |
 | **✕** | Takes it off the stack. The file stays safe |
 
-After a couple of quiet seconds the stack shrinks into a small box in its corner. Click it to open the
-stack again. If it's ever in your way, drag it anywhere by the **✥** handle on a card.
+After a couple of quiet seconds the stack shrinks into a small box in its corner, though not while your
+pointer is on it or heading for it. Click it to open the stack again. If it's ever in your way, drag it anywhere by the **✥** handle on a card.
 
 **Not just new screenshots.** Anything can go in the stack and get the same treatment, like an image someone
 sent you, an old screenshot, a video to turn into a GIF, or a picture you copied:
