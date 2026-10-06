@@ -231,16 +231,7 @@ enum ClaudeCode {
     }
 
     private static func loginShellLookup() -> URL? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        process.arguments = ["-lc", "whence -p claude"]
-        let out = Pipe()
-        process.standardOutput = out
-        process.standardError = Pipe()
-        guard (try? process.run()) != nil else { return nil }
-        process.waitUntilExit()
-        let path = String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let path = Shell.output("/bin/zsh", ["-lc", "whence -p claude"])?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return path.isEmpty ? nil : URL(fileURLWithPath: path)
     }
 }

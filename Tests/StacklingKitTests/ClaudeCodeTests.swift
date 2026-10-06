@@ -22,6 +22,17 @@ import Testing
         #expect(throws: ClaudeCode.Failure.self) { try ClaudeCode.decode(Data("Error: something".utf8)) }
     }
 
+    /// With no claude in the usual folders, the first card or "3 more" drawn asks a login shell where it is.
+    /// Waiting for the shell must let no other main-thread work run halfway: that work can read
+    /// `isInstalled` while it's still being worked out, which traps. It crashed the tests on CI that way.
+    @MainActor @Test func waitingForAToolRunsNothingElseOnTheMainThread() {
+        final class Flag: @unchecked Sendable { var raised = false }
+        let ran = Flag()
+        RunLoop.main.perform { ran.raised = true }
+        #expect(Shell.output("/bin/sh", ["-c", "sleep 0.2; echo found"]) == "found\n")
+        #expect(!ran.raised, "work queued on the main run loop ran while it waited")
+    }
+
     @Test func promptListsFilesAndExistingFolders() {
         let prompt = ClaudeCode.prompt(for: [URL(fileURLWithPath: "/x/Screenshot A.png")], existingFolders: ["Bugs", "Design"])
         #expect(prompt.contains("- Screenshot A.png"))
