@@ -134,7 +134,7 @@ enum DevCopy {
         }
         snapshot("2-at-the-pill.png")
         let aimed = controller.click(atScreen: driver.pointer)
-        report.hitView = aimed.hit.map { String(describing: type(of: $0)) } ?? "none"
+        report.hitView = aimed.hitName
         report.target = aimed.target
         report.pressed = aimed.target == .more
         report.expanded = store.expanded

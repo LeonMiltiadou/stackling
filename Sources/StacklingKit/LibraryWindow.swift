@@ -412,8 +412,7 @@ enum LibraryActions {
             guard Clipboard.write(shot: Shot(url: item.url, created: item.created)) else { return false }
         } else {
             guard let exported = Export.urls(for: items.map(\.url)) else { return false }
-            Clipboard.board.clearContents()
-            Clipboard.board.writeObjects(exported.map { $0 as NSURL })
+            Clipboard.write(files: exported)
         }
         items.forEach { Usage.used($0.url, how: "library-copy") }
         Log.actions.info("library.copy count=\(items.count)")

@@ -38,8 +38,7 @@ enum Actions {
             ordered.first?.flashFailed("Couldn't prepare images")
             return
         }
-        Clipboard.board.clearContents()
-        Clipboard.board.writeObjects(exported.map { $0 as NSURL })
+        Clipboard.write(files: exported)
         ordered.forEach { Usage.used($0.url, how: "copy-all") }
         Log.actions.info("copy-all count=\(ordered.count)")
         ActivityLog.record(.copyAll, ["count": ordered.count])

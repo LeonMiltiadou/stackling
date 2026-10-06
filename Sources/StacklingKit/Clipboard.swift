@@ -12,6 +12,12 @@ enum Clipboard {
         board.setString(string, forType: .string)
     }
 
+    /// Several files at once, for pasting into a chat or a pull request.
+    static func write(files: [URL]) {
+        board.clearContents()
+        board.writeObjects(files.map { $0 as NSURL })
+    }
+
     static func write(image: NSImage) {
         board.clearContents()
         board.writeObjects([image])

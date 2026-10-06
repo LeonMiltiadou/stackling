@@ -347,10 +347,20 @@ final class StackPanelController {
 
     // MARK: Aiming
 
+    /// What a click at a point would land on.
+    struct Aim {
+        /// The view AppKit's hit-testing finds there.
+        var hit: NSView?
+        /// The stack button there, when nothing AppKit sits on top of it.
+        var target: StackTarget?
+        /// The hit view's type, for logs and reports: "StackHostingView", "DragSurfaceView" or "none".
+        var hitName: String { hit.map { String(describing: type(of: $0)) } ?? "none" }
+    }
+
     /// What's under `point`, in the host's own coordinates (top-left origin): the view AppKit's hit-testing
     /// finds, and the stack button laid out there when that view is the SwiftUI host itself, so no card
     /// or other AppKit view sits on top of it.
-    static func aim(at point: NSPoint, in host: NSView, store: ShotStore) -> (hit: NSView?, target: StackTarget?) {
+    static func aim(at point: NSPoint, in host: NSView, store: ShotStore) -> Aim {
         settle(host)
         // hitTest takes the superview's coordinates. A host on its own (a test) has none, so place the point
         // in its frame by hand: the host is flipped, its frame isn't.
@@ -358,8 +368,8 @@ final class StackPanelController {
         let inSuperview = host.superview.map { host.convert(point, to: $0) }
             ?? NSPoint(x: frame.minX + point.x, y: host.isFlipped ? frame.maxY - point.y : frame.minY + point.y)
         let hit = host.hitTest(inSuperview)
-        guard let hit, hit === host else { return (hit, nil) }
-        return (hit, StackTarget.allCases.first { store.targetFrames[$0]?.contains(point) == true })
+        guard let hit, hit === host else { return Aim(hit: hit) }
+        return Aim(hit: hit, target: StackTarget.allCases.first { store.targetFrames[$0]?.contains(point) == true })
     }
 
     /// Brings the SwiftUI content up to date with the store before aiming. A window on screen does this
@@ -382,14 +392,14 @@ final class StackPanelController {
     /// way a click would (AppKit down to the SwiftUI host, then where the buttons are laid out) and, when a
     /// stack button is there, presses it with the same call the button makes. Cards are never pressed.
     @discardableResult
-    func click(atScreen point: NSPoint) -> (hit: NSView?, target: StackTarget?) {
-        var aimed: (hit: NSView?, target: StackTarget?) = (nil, nil)
+    func click(atScreen point: NSPoint) -> Aim {
+        var aimed = Aim()
         if isShowing, !panel.ignoresMouseEvents, panel.frame.contains(point), let host = panel.contentView {
             aimed = Self.aim(at: host.convert(panel.convertPoint(fromScreen: point), from: nil), in: host, store: store)
         }
-        let hit = aimed.hit.map { String(describing: type(of: $0)) } ?? "none"
-        Log.stack.info("panel.click hit=\(hit, privacy: .public) target=\(aimed.target?.rawValue ?? "none", privacy: .public)")
-        ActivityLog.record(.panelClick, ["hit": hit, "target": aimed.target?.rawValue ?? "none"])
+        let target = aimed.target?.rawValue ?? "none"
+        Log.stack.info("panel.click hit=\(aimed.hitName, privacy: .public) target=\(target, privacy: .public)")
+        ActivityLog.record(.panelClick, ["hit": aimed.hitName, "target": target])
         aimed.target?.press(store)
         return aimed
     }
