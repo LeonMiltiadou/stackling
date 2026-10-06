@@ -31,6 +31,7 @@ enum Importer {
 
     /// Stackling › Add to Stack…: pick any pictures or videos, starting in the library.
     static func chooseFiles() {
+        guard Outside.allows("open-panel") else { return }
         NSApp.activate()
         let panel = NSOpenPanel()
         panel.title = "Add to Stack"

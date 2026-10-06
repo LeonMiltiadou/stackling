@@ -140,8 +140,10 @@ enum NativeShortcuts {
 }
 
 /// Opens the Mac's own screenshot toolbar (⇧⌘5), for recording with sound or its other options.
+@MainActor
 enum SystemScreenshotToolbar {
     static func open() {
+        guard Outside.allows("screenshot-toolbar") else { return }
         // -p saves using your normal settings, so the file lands in the screenshot folder and reaches the stack.
         Shell.run("/usr/sbin/screencapture", ["-i", "-U", "-p"], wait: false)
     }

@@ -291,6 +291,7 @@ enum WelcomeAlert {
 @MainActor
 enum Uninstaller {
     static func confirmAndRun() {
+        guard Outside.allows("uninstall-prompt") else { return }
         NSApp.activate()
         let alert = NSAlert()
         alert.messageText = "Uninstall Stackling?"

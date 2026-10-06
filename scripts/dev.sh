@@ -5,12 +5,15 @@
 #
 # It has its own bundle id, and a check runs it with its own throwaway home folder, so none of your
 # settings, screenshots, clipboard or keys are touched. It never shows a window, a menu bar icon or a
-# Dock icon (see DevCopy.swift). The pictures of its stack, drawn in memory, land in dir
-# (default .build/dev/check). Never installs anything.
+# Dock icon (see DevCopy.swift). The pictures of its stack, drawn in memory, land in dir: a relative
+# dir is from where you ran this, the default is .build/dev/check in the repo. Only its own three
+# pictures there are replaced; nothing else in dir is touched. Never installs anything.
 #
 # STACKLING_DEV_BIN=path uses an app binary that's already built (the tests use the release build).
 set -e
 setopt no_bg_nice
+PICTURES=(1-before-reach.png 2-at-the-pill.png 3-after-click.png)
+[ -n "$2" ] && OUT=${2:a} || OUT=
 cd "$(dirname "$0")/.."
 
 if [ -n "$STACKLING_DEV_BIN" ]; then
@@ -36,9 +39,9 @@ codesign --force --sign - "$APP" 2>/dev/null
 echo "Built $APP"
 [ "$1" = "check" ] || exit 0
 
-OUT=${2:-.build/dev/check}
-rm -rf "$OUT"
+OUT=${OUT:-$PWD/.build/dev/check}
 mkdir -p "$OUT"
+for picture in $PICTURES; do rm -f "$OUT/$picture"; done
 HOME_DIR=$(mktemp -d -t stackling-dev)
 CFFIXED_USER_HOME="$HOME_DIR" "$APP/Contents/MacOS/Stackling" --dev-check "$OUT" &
 pid=$!

@@ -56,7 +56,18 @@ import Testing
         Actions.reveal(shot)
         Actions.openInQuickTime(shot)
         Actions.moveTo(shot)
-        #expect(Array(Outside.blocked.dropFirst(before)) == ["editor", "Preview", "finder", "QuickTime Player", "save-panel"])
+        Actions.fileIntoNewFolder(shot)
+        let bugs = folder.url.appendingPathComponent("Bugs", isDirectory: true)
+        try FileManager.default.createDirectory(at: bugs, withIntermediateDirectories: true)
+        #expect(!Library.trashFolder(bugs))
+        #expect(Library.renameFolder(bugs) == nil)
+        Importer.chooseFiles()
+        Uninstaller.confirmAndRun()
+        #expect(Array(Outside.blocked.dropFirst(before)) == ["editor", "Preview", "finder", "QuickTime Player", "save-panel",
+                                                             "name-prompt", "trash-folder-prompt", "name-prompt", "open-panel",
+                                                             "uninstall-prompt"])
+        #expect(FileManager.default.fileExists(atPath: bugs.path))
+        #expect(FileManager.default.fileExists(atPath: shot.url.path), "New Folder… filed nothing")
         #expect(NSApplication.shared.windows.allSatisfy { !$0.isVisible })
     }
 
@@ -65,9 +76,12 @@ import Testing
     @Test(.enabled(if: DevApp.freshRelease != nil, "needs a fresh `swift build -c release`"), .timeLimit(.minutes(1)))
     func theHiddenDevAppReachesForMoreAndOpensTheStack() throws {
         let folder = try TempFolder()
+        let yours = try folder.file("yours.txt")
         let run = Process()
         run.executableURL = URL(fileURLWithPath: "/bin/zsh")
-        run.arguments = [DevApp.root.appendingPathComponent("scripts/dev.sh").path, "check", folder.url.path]
+        // A relative folder, from where the script is run, that already has something else in it.
+        run.currentDirectoryURL = folder.url.deletingLastPathComponent()
+        run.arguments = [DevApp.root.appendingPathComponent("scripts/dev.sh").path, "check", folder.url.lastPathComponent]
         run.environment = ProcessInfo.processInfo.environment.merging(["STACKLING_DEV_BIN": try #require(DevApp.freshRelease).path]) { $1 }
         let out = Pipe()
         run.standardOutput = out
@@ -82,6 +96,7 @@ import Testing
         #expect(output.contains("onscreen-windows=0"))
         #expect(output.contains(#""e":"stack.expand""#))
         #expect(FileManager.default.fileExists(atPath: folder.url.appendingPathComponent("3-after-click.png").path))
+        #expect(FileManager.default.fileExists(atPath: yours.path), "the check only replaces its own pictures")
     }
 
     @Test func theDevCopyRefusesWhileOpenersAreLive() throws {

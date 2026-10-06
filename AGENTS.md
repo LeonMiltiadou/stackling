@@ -95,8 +95,9 @@ SwiftUI ignores a `mouseDown` handed to its view. So nothing can really click it
 bundle id `io.github.leonmiltiadou.stackling.dev`, a throwaway home folder, its own library, logs,
 Keychain item, usage attribute and pasteboard (`AppIdentity`). Its launch runs only the hidden stack
 (`LaunchStep.plan(dev:)`): no menu bar or Dock icon, hot keys, card keys, screenshot settings, watcher,
-tidying, Claude or Jev. Every window, app, Finder, share sheet or dialog an action could open goes through
-`Outside`, which Dev and the tests make inert, and Dev refuses to run otherwise. The stack runs on
+tidying, Claude or Jev. Every window, app, Finder, share sheet, dialog or capture overlay an action could
+open goes through `Outside` (anything new that opens one must ask it too), which Dev and the tests make
+inert, and Dev refuses to run otherwise. The stack runs on
 `StackSenses` (clock, pointer, shrink delay): Dev scripts the pointer in real time; tests use
 `SteppedDriver`, a clock that moves only when told. Dev's "click" (`StackPanelController.click`) is
 AppKit's hit-test on the live panel plus where the stack buttons are laid out (`StackTarget`), then the

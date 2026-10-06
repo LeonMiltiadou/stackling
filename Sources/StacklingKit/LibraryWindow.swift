@@ -470,7 +470,7 @@ enum LibraryActions {
                 moves[url.standardizedFileURL] = try Library.move(url, into: folder)
             }
         } catch {
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
         }
         ShotStore.shared.relocate(moves)
         LibraryIndex.shared.scheduleRescan()
@@ -496,7 +496,7 @@ enum LibraryActions {
             Log.library.info("library.rename")
             ActivityLog.record(.libraryRename)
         } catch {
-            NSAlert(error: error).runModal()
+            Outside.alert(error)
         }
     }
 }

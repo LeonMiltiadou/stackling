@@ -1,8 +1,10 @@
 import AppKit
 
-/// Everything a card action opens outside the stack: Stackling's own windows, other apps, Finder, the
-/// share sheet and dialogs all ask `allows` first. Stackling Dev and the tests make it inert, so a press
-/// that lands on the wrong card can never put anything on your screen; it only notes what would have opened.
+/// Everything Stackling opens outside the stack asks `allows` first: its own windows, other apps, Finder,
+/// the share sheet, open and save panels, name prompts and alerts, System Settings and capture overlays.
+/// (What's inside one of its windows is covered by that window's own gate.) Stackling Dev and the tests
+/// make it inert, so a press that lands on the wrong card can never put anything on your screen; it only
+/// notes what would have opened.
 @MainActor
 enum Outside {
     private(set) static var isInert = false
