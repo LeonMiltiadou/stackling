@@ -7,12 +7,18 @@
 # settings, screenshots, clipboard or keys are touched. It never shows a window, a menu bar icon or a
 # Dock icon (see DevCopy.swift). The pictures of its stack, drawn in memory, land in dir
 # (default .build/dev/check). Never installs anything.
+#
+# STACKLING_DEV_BIN=path uses an app binary that's already built (the tests use the release build).
 set -e
 setopt no_bg_nice
 cd "$(dirname "$0")/.."
 
-swift build
-BIN="$(swift build --show-bin-path)/Stackling"
+if [ -n "$STACKLING_DEV_BIN" ]; then
+  BIN=$STACKLING_DEV_BIN
+else
+  swift build
+  BIN="$(swift build --show-bin-path)/Stackling"
+fi
 APP=".build/dev/Stackling Dev.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS"

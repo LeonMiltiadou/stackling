@@ -60,6 +60,30 @@ import Testing
         #expect(NSApplication.shared.windows.allSatisfy { !$0.isVisible })
     }
 
+    /// The real Stackling Dev app, run by `scripts/dev.sh check` from the release build the check command
+    /// makes just before the tests. Skipped when that build is older than the sources.
+    @Test(.enabled(if: DevApp.freshRelease != nil, "needs a fresh `swift build -c release`"), .timeLimit(.minutes(1)))
+    func theHiddenDevAppReachesForMoreAndOpensTheStack() throws {
+        let folder = try TempFolder()
+        let run = Process()
+        run.executableURL = URL(fileURLWithPath: "/bin/zsh")
+        run.arguments = [DevApp.root.appendingPathComponent("scripts/dev.sh").path, "check", folder.url.path]
+        run.environment = ProcessInfo.processInfo.environment.merging(["STACKLING_DEV_BIN": try #require(DevApp.freshRelease).path]) { $1 }
+        let out = Pipe()
+        run.standardOutput = out
+        run.standardError = out
+        try run.run()
+        let output = String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        run.waitUntilExit()
+        #expect(run.terminationStatus == 0, "\(output)")
+        #expect(output.contains("target=more"))
+        #expect(output.contains("expanded=true"))
+        #expect(output.contains("shrank-during-reach=false"))
+        #expect(output.contains("onscreen-windows=0"))
+        #expect(output.contains(#""e":"stack.expand""#))
+        #expect(FileManager.default.fileExists(atPath: folder.url.appendingPathComponent("3-after-click.png").path))
+    }
+
     @Test func theDevCopyRefusesWhileOpenersAreLive() throws {
         let folder = try TempFolder()
         let store = ShotStore()
@@ -73,5 +97,23 @@ import Testing
         #expect(report.refused != nil)
         #expect(store.shots.isEmpty, "refused before touching anything")
         #expect(Outside.isInert)
+    }
+}
+
+/// Where the package is, and its release build of the app if no source changed since that build.
+enum DevApp {
+    static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+
+    static var freshRelease: URL? {
+        let binary = root.appendingPathComponent(".build/release/Stackling")
+        // The module's dependency file is rewritten on every release compile; the binary is only relinked
+        // when the code really changed, so its own date can be older than an untouched-but-saved source.
+        let compiled = root.appendingPathComponent(".build/release/StacklingKit.build/StacklingKit.d")
+        guard binary.modificationDate != nil, let built = compiled.modificationDate ?? binary.modificationDate else { return nil }
+        let sources = FileManager.default.enumerator(at: root.appendingPathComponent("Sources"), includingPropertiesForKeys: [.contentModificationDateKey])
+        while let file = sources?.nextObject() as? URL {
+            if let changed = file.modificationDate, changed > built { return nil }
+        }
+        return binary
     }
 }
