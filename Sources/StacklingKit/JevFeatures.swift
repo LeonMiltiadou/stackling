@@ -80,8 +80,8 @@ enum AutoFiler {
     /// a path that's gone, so the upload fails.
     static func fileWhenFree(_ shot: Shot, into folder: URL, now: () -> Date = Date.init,
                              pause: (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }) async -> Bool {
-        if shot.isBeingDragged(at: now()) {
-            let started = now()
+        let started = now()
+        if shot.isBeingDragged(at: started) {
             Log.library.notice("autofile.waiting reason=drag")
             while shot.isBeingDragged(at: now()) { await pause(0.25) }
             let waited = Int(now().timeIntervalSince(started) * 1000)
