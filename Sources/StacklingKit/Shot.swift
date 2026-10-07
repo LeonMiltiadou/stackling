@@ -58,6 +58,18 @@ final class Shot: ObservableObject, Identifiable {
         Usage.setKeep(url, keep)
     }
 
+    /// While you drag the shot out, and for a moment after the drop, the app it went to may still read the
+    /// file at the path it was handed, so auto-filing waits rather than move it (see `AutoFiler.fileWhenFree`).
+    private var dragHold: Date?
+    /// How long after the drop the other app gets to read the file.
+    nonisolated static let afterDrop: TimeInterval = 5
+    /// A drag that never reports its end stops holding filing after this long.
+    nonisolated static let longestDrag: TimeInterval = 60
+
+    func dragStarted(at now: Date = Date()) { dragHold = now + Self.longestDrag }
+    func dragEnded(at now: Date = Date()) { dragHold = now + Self.afterDrop }
+    func isBeingDragged(at now: Date = Date()) -> Bool { (dragHold ?? .distantPast) > now }
+
     var hasMarkup: Bool { !(markup?.isEmpty ?? true) }
 
     @discardableResult

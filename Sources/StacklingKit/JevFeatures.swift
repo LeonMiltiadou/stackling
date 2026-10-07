@@ -65,7 +65,7 @@ enum AutoFiler {
                 Log.library.info("autofile.kept guess=\(answer?.choice ?? "-", privacy: .public) confidence=\(answer?.confidence ?? 0) described=\(described) ms=\(ms)")
                 return
             }
-            guard shot.exists, Library.file(shot, into: folder) else { return }
+            guard await fileWhenFree(shot, into: folder) else { return }
             shot.flashDone("Filed in \(folder.lastPathComponent)")
             ActivityLog.record(.autoFile, ["outcome": "filed", "confidence": ((answer?.confidence ?? 0) * 100).rounded() / 100,
                                            "described": described, "lookalikes": lookAlikes.count, "ms": ms])
@@ -74,6 +74,20 @@ enum AutoFiler {
             Log.library.error("autofile.failed error=\(error.localizedDescription, privacy: .public)")
             ActivityLog.record(.autoFile, ["outcome": "failed"])
         }
+    }
+
+    /// Files the shot once you've stopped dragging it out. Moving it mid-drag hands the app it's dropped on
+    /// a path that's gone, so the upload fails.
+    static func fileWhenFree(_ shot: Shot, into folder: URL, now: () -> Date = Date.init,
+                             pause: (TimeInterval) async -> Void = { try? await Task.sleep(for: .seconds($0)) }) async -> Bool {
+        if shot.isBeingDragged(at: now()) {
+            let started = now()
+            Log.library.notice("autofile.waiting reason=drag")
+            while shot.isBeingDragged(at: now()) { await pause(0.25) }
+            let waited = Int(now().timeIntervalSince(started) * 1000)
+            Log.library.notice("autofile.resumed waited_ms=\(waited)")
+        }
+        return shot.exists && Library.file(shot, into: folder)
     }
 
     /// Everything Jev is told about the shot. All of it is text; the picture itself only goes anywhere

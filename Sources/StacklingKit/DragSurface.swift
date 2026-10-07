@@ -131,6 +131,7 @@ final class DragSurfaceView: NSView, NSDraggingSource {
     private func startDrag(with event: NSEvent) {
         guard let shot, let url = shot.exportURL() else { return }
         Log.actions.info("drag file=\(shot.url.lastPathComponent, privacy: .public)")
+        shot.dragStarted()
         let item = NSDraggingItem(pasteboardWriter: url as NSURL)
         let image = shot.thumbnail ?? NSWorkspace.shared.icon(forFile: shot.url.path)
         let maxSide = Self.dragPreviewMaxSide
@@ -151,6 +152,7 @@ final class DragSurfaceView: NSView, NSDraggingSource {
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         mouseDownEvent = nil
+        shot?.dragEnded()
         Log.actions.info("drag.ended operation=\(operation.rawValue) dropped=\(!operation.isEmpty)")
         if !operation.isEmpty { onDropped(operation) }
     }
